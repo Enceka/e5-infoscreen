@@ -14,14 +14,16 @@ device at a glance, and is driven by touch and by the keypad.
 | SMS | the received messages, newest first, unread ones marked; open one to read it, delete it (press twice) |
 | Hotspot | SSID, a QR code to join, the passphrase on request, on/off, the clients (Wi-Fi and USB) |
 | Device | battery, uptime, time online, load, memory, LAN/IPv4/IPv6 addresses, brightness, reconnect |
+| Advanced | device (system, image, kernel, storage, temperature, battery voltage); baseband (model, firmware, 5G SA, modes); band locks (LTE, NR) and cell locks, decoded from `AT+SPLBAND` / `AT+SPFORCEFRQ`; SIM (active slot, operator, registration); the identifiers on request |
 
 The status bar carries the operator, the technology, signal bars, the battery
 and the time, and ✉ with the number of unread messages.  A new message lights
 the screen and opens itself (e5-linux's `e5-sms-notify` vibrates and keeps the
 unread list, `/tmp/run/e5-sms/unread`; `e5-notify.sms.screen=0` turns the
 lighting up off).  Opening the SMS page marks the messages read.  The SIM's
-and the device's identities (own number, IMEI, IMSI) are never shown or
-served.
+and the device's identities (IMEI, ICCID, IMSI, own number) are shown only on
+the Advanced page, after "show identifiers", and served only by the one
+endpoint that button calls (`/api/identity`).
 
 ## How it works
 
@@ -57,7 +59,7 @@ Measured on the device (WebKit's names in brackets):
 | up / down | move between the buttons of a page, or scroll it |
 | confirm (`KEY_SELECT`, "Unidentified") | press the focused button |
 | back (`KEY_BACK` + BackSpace) | close the message, leave the button, or go to the first page |
-| 1-5 | go to that page |
+| 1-6 | go to that page |
 | side key (`F1`) | the hotspot page (to show the QR code) |
 | power (`PowerOff`) | screen off |
 | volume | left to the volume |

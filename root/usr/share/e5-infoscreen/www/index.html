@@ -123,6 +123,47 @@
 			<button id="dv-reconnect" class="btn wide" data-t="reconnect"></button>
 		</div>
 	</section>
+	<!-- advanced: details, read-only -->
+	<section class="page" data-title="advanced">
+		<div class="card grid">
+			<span class="label sect" data-t="device"></span><span></span>
+			<span class="label" data-t="model"></span><span id="ad-model" class="value">--</span>
+			<span class="label" data-t="system"></span><span id="ad-os" class="value small">--</span>
+			<span class="label" data-t="image"></span><span id="ad-image" class="value small">--</span>
+			<span class="label" data-t="kernel"></span><span id="ad-kernel" class="value small">--</span>
+			<span class="label" data-t="storage"></span><span id="ad-disk" class="value">--</span>
+			<span class="label" data-t="temperature"></span><span id="ad-temp" class="value">--</span>
+			<span class="label" data-t="battery"></span><span id="ad-bat" class="value">--</span>
+		</div>
+		<div class="card grid">
+			<span class="label sect" data-t="baseband"></span><span></span>
+			<span class="label" data-t="model"></span><span id="ad-bb" class="value small">--</span>
+			<span class="label">5G SA</span><span id="ad-sa" class="value">--</span>
+			<span class="label" data-t="modes"></span><span id="ad-modes" class="value small">--</span>
+			<div id="ad-fw" class="fw"></div>
+		</div>
+		<div class="card grid">
+			<span class="label sect" data-t="locks"></span><span></span>
+			<span class="label" data-t="lte_bands"></span><span id="ad-lte" class="value">--</span>
+			<span class="label" data-t="nr_bands"></span><span id="ad-nr" class="value">--</span>
+			<span class="label" data-t="cell_lock"></span><span id="ad-cell" class="value small">--</span>
+		</div>
+		<div class="card grid">
+			<span class="label sect">SIM</span><span></span>
+			<span class="label" data-t="slot"></span><span id="ad-slot" class="value">--</span>
+			<span class="label" data-t="operator"></span><span id="ad-op" class="value">--</span>
+			<span class="label" data-t="registration"></span><span id="ad-reg" class="value">--</span>
+		</div>
+		<div class="card">
+			<div id="ad-ids" class="grid" hidden>
+				<span class="label">IMEI</span><span id="id-imei" class="value small">--</span>
+				<span class="label">ICCID</span><span id="id-iccid" class="value small">--</span>
+				<span class="label">IMSI</span><span id="id-imsi" class="value small">--</span>
+				<span class="label" data-t="number"></span><span id="id-num" class="value small">--</span>
+			</div>
+			<button id="ad-showids" class="btn wide" data-t="show_ids"></button>
+		</div>
+	</section>
 </main>
 
 <footer id="foot">

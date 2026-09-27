@@ -11,12 +11,16 @@
 //   GET  /api/sms            the messages, newest first, and which are unread
 //   POST /api/sms-read       the messages have been seen (e5-sms-notify read)
 //   POST /api/sms-delete     {"id": N}
+//   GET  /api/advanced       device, baseband and SIM details, band and cell locks
+//   GET  /api/identity       IMEI, ICCID, IMSI, own number -- when the page asks
 //   POST /api/wifi           {"on": true|false}
 //   POST /api/backlight      {"level": 0-255, "save": true|false}
 //   POST /api/wan-reconnect
 //   POST /api/key            {"key": ..., "code": ..., "keyCode": ...}  (key log)
 //
-// No identity of the SIM or the device (own number, IMEI, IMSI) is returned.
+// The identities of the SIM and the device (own number, IMEI, ICCID, IMSI)
+// are returned by /api/identity alone, which the page calls when asked to
+// show them.
 
 import { readfile, writefile, popen, open, stat, glob } from 'fs';
 import { connect } from 'ubus';
@@ -413,6 +417,162 @@ function sms_delete(id) {
 	return ok;
 }
 
+/* ---------- advanced ---------- */
+
+// an AT command through ModemManager (the AT channel has one owner); the
+// reply without the final OK, or null
+function at(cmd) {
+	let out = sh(`mmcli -m any --timeout=10 --command='${cmd}' 2>/dev/null`);
+	let m = out ? match(out, /response: '([^']*)'/s) : null;
+	return m ? trim(m[1]) : null;
+}
+
+function payload_ints(line) {
+	let body = line ?? '';
+	let i = index(body, ':');
+	if (i >= 0)
+		body = substr(body, i + 1);
+	let out = [];
+	for (let n in (match(body, /-?[0-9]+/g) ?? []))
+		push(out, +n[0]);
+	return out;
+}
+
+// AT+SPLBAND=0: five mask words, groups 49-64, 33-48, 17-32, 1-16, 65-80
+// (unisoc-cpd src/unisoc_at.rs, parse_lte_bands)
+function lte_bands(line) {
+	let base = [ 49, 33, 17, 1, 65 ], w = payload_ints(line), out = [];
+	for (let g = 0; g < 5 && g < length(w); g++)
+		for (let bit = 0; bit < 16; bit++)
+			if (w[g] & (1 << bit))
+				push(out, base[g] + bit);
+	return sort(out, (a, b) => a - b);
+}
+
+// AT+SPLBAND=3: words 0, 2 and 3 are masks over these tables (parse_nr_bands)
+const NR_V1 = [ 1, 2, 3, 5, 7, 8, 12, 20, 25, 28, 66, 70, 71, 74 ];
+const NR_V3 = [ 34, 38, 39, 40, 41, 50, 51, 77, 78, 79 ];
+const NR_SUPER = [ 75, 76, 80, 81, 82, 83, 84, 86 ];
+function nr_bands(line) {
+	let w = payload_ints(line), out = [];
+	for (let pair in [ [ 0, NR_V1 ], [ 2, NR_V3 ], [ 3, NR_SUPER ] ])
+		if (pair[0] < length(w))
+			for (let i = 0; i < length(pair[1]); i++)
+				if (w[pair[0]] & (1 << i))
+					push(out, pair[1][i]);
+	return sort(out, (a, b) => a - b);
+}
+
+// AT+SPFORCEFRQ=<12|16>,3: "+SPFORCEFRQ: <rat>,3[,<freq>,<pci>]..."
+function cell_locks(line) {
+	let w = payload_ints(line), out = [];
+	for (let i = 2; i + 1 < length(w); i += 2)
+		push(out, { arfcn: w[i], pci: w[i + 1] });
+	return out;
+}
+
+function read_kv(path) {
+	let r = {};
+	for (let line in split(readfile(path) ?? '', '\n')) {
+		let m = match(line, /^([A-Z_]+)='?([^']*)'?$/);
+		if (m)
+			r[m[1]] = m[2];
+	}
+	return r;
+}
+
+function thermal() {
+	let hot = null;
+	for (let z in glob('/sys/class/thermal/thermal_zone*')) {
+		let t = read_num(z + '/temp');
+		if (t != null && t > -40000 && t < 150000 && (hot == null || t > hot.temp))
+			hot = { temp: t / 1000, zone: read_trim(z + '/type') };
+	}
+	return hot;
+}
+
+function disk(path) {
+	let out = sh(`df -k ${path} 2>/dev/null`);
+	let lines = split(trim(out ?? ''), '\n');
+	let f = split(replace(lines[length(lines) - 1] ?? '', /\s+/g, ' '), ' ');
+	return (length(f) >= 4) ? { total: +f[1] * 1024, used: +f[2] * 1024 } : null;
+}
+
+let adv_cache = null, adv_time = 0;
+
+function advanced() {
+	if (adv_cache && now() - adv_time < 30)
+		return adv_cache;
+
+	let rel = read_kv('/etc/openwrt_release');
+	let b = '/sys/class/power_supply/battery/';
+	let m = sh_json('mmcli -J -m any --timeout=5 2>/dev/null')?.modem;
+	let g = m?.generic ?? {}, g3 = m?.['3gpp'] ?? {};
+
+	// "Platform Version: ...\nBASE  Version:  ...\nHW Version: ..." -> pairs
+	let fw = [];
+	for (let line in split(g.revision ?? '', '\n')) {
+		line = trim(replace(line, /\s+/g, ' '));
+		let i = index(line, ':');
+		if (match(line, /^[0-9]{2}-[0-9]{2}-[0-9]{4} /))
+			push(fw, { name: 'Build', value: line });    // the build date, "06-25-2024 16:44:53"
+		else if (i > 0)
+			push(fw, { name: trim(substr(line, 0, i)), value: trim(substr(line, i + 1)) });
+	}
+
+	let lte = m ? lte_bands(at('AT+SPLBAND=0')) : [];
+	let nr = m ? nr_bands(at('AT+SPLBAND=3')) : [];
+	let card = m ? payload_ints(at('AT+SPACTCARD?'))[0] : null;
+	let sa = m ? payload_ints(at('AT+SP5GRAN?'))[0] : null;
+
+	adv_cache = {
+		device: {
+			model: 'Rongyue E5',
+			os: rel.DISTRIB_DESCRIPTION,
+			image: read_trim('/etc/e5/image-version'),
+			kernel: read_trim('/proc/sys/kernel/osrelease'),
+			disk: disk('/mnt/e5-disk'),
+			thermal: thermal(),
+			battery_mv: (read_num(b + 'voltage_now') ?? 0) / 1000 || null,
+			battery_temp: (read_num(b + 'temp') == null) ? null : read_num(b + 'temp') / 10
+		},
+		baseband: m ? {
+			manufacturer: mm_val(g.manufacturer),
+			model: mm_val(g.model),
+			firmware: fw,
+			plugin: mm_val(g.plugin),
+			sa_allowed: (sa == null) ? null : sa == 1,
+			modes: mm_val(g['current-modes']),
+			// empty = no lock (every band allowed)
+			lte_lock: lte,
+			nr_lock: nr,
+			lte_cell_lock: cell_locks(at('AT+SPFORCEFRQ=12,3')),
+			nr_cell_lock: cell_locks(at('AT+SPFORCEFRQ=16,3'))
+		} : null,
+		sim: m ? {
+			present: mm_val(g.sim) != null,
+			active_slot: (card == null) ? null : card + 1,
+			state: mm_val(g.state),
+			registration: mm_val(g3['registration-state']),
+			operator_code: mm_val(g3['operator-code']),
+			operator: mm_val(g3['operator-name'])
+		} : null
+	};
+	adv_time = now();
+	return adv_cache;
+}
+
+function identity() {
+	let m = sh_json('mmcli -J -m any --timeout=5 2>/dev/null')?.modem;
+	let sim = sh_json('mmcli -J -i any --timeout=5 2>/dev/null')?.sim?.properties;
+	return {
+		imei: mm_val(m?.['3gpp']?.imei) ?? mm_val(m?.generic?.['equipment-identifier']),
+		numbers: filter(m?.generic?.['own-numbers'] ?? [], (n) => mm_val(n) != null),
+		iccid: mm_val(sim?.iccid),
+		imsi: mm_val(sim?.imsi)
+	};
+}
+
 function sms_config() {
 	let c = cursor();
 	return { screen: c.get('e5-notify', 'sms', 'screen') != '0' };
@@ -540,6 +700,10 @@ global.handle_request = function(env) {
 			return reply_json(200, { ok: system('e5-sms-notify read >/dev/null 2>&1 || : > ' + SMS_UNREAD) == 0 });
 		if (post && path == '/sms-delete')
 			return reply_json(200, { ok: sms_delete(read_body(env).id ?? -1) });
+		if (!post && path == '/advanced')
+			return reply_json(200, advanced());
+		if (!post && path == '/identity')
+			return reply_json(200, identity());
 		if (!post && path == '/wifi-key')
 			return reply_json(200, { key: wifi_config().key });
 		if (post && path == '/wifi')

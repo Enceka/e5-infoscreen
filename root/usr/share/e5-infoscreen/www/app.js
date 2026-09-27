@@ -1,5 +1,6 @@
 'use strict';
-// The E5 info screen: five pages (overview, signal, SMS, hotspot, device) fed
+// The E5 info screen: six pages (overview, signal, SMS, hotspot, device,
+// advanced) fed
 // by /api/status, driven by touch (tap, swipe) and the keypad (arrows,
 // confirm, back, digits, power).  The backlight goes off after the configured
 // idle time; the first touch or key after that only wakes the screen.  A new
@@ -10,6 +11,13 @@ const I18N = {
 		overview: '概览', signal: '信号', sms: '短信', hotspot: '热点', device: '设备',
 		back: '返回', delete: '删除', delete_confirm: '再按一次删除', deleted: '已删除',
 		no_sms: '没有短信', unknown_sender: '未知号码', new_sms: '新短信',
+		advanced: '高级', model: '型号', system: '系统', image: '镜像版本', kernel: '内核',
+		storage: '存储', temperature: '温度', baseband: '基带', modes: '网络模式',
+		locks: '锁定', lte_bands: 'LTE 频段', nr_bands: 'NR 频段', cell_lock: '锁小区',
+		not_locked: '未锁定', slot: '卡槽', operator: '运营商', registration: '注册',
+		number: '本机号码', show_ids: '显示识别码', hide_ids: '隐藏识别码',
+		allowed: '允许', nsa_only: '仅 NSA', card: '卡', home: '本地网', roaming_reg: '漫游',
+		idle_reg: '未注册', denied: '被拒绝',
 		since_boot: '本次开机', network: '网络', clients: '在线设备', battery: '电池',
 		bandwidth: '带宽', neighbours: '邻区', uptime: '开机时长', wan_uptime: '联网时长',
 		load: '负载', memory: '内存', brightness: '亮度', reconnect: '重新连接网络',
@@ -27,6 +35,13 @@ const I18N = {
 		overview: 'Overview', signal: 'Signal', sms: 'Messages', hotspot: 'Hotspot', device: 'Device',
 		back: 'Back', delete: 'Delete', delete_confirm: 'Press again to delete', deleted: 'Deleted',
 		no_sms: 'No messages', unknown_sender: 'Unknown', new_sms: 'New message',
+		advanced: 'Advanced', model: 'Model', system: 'System', image: 'Image', kernel: 'Kernel',
+		storage: 'Storage', temperature: 'Temperature', baseband: 'Baseband', modes: 'Modes',
+		locks: 'Locks', lte_bands: 'LTE bands', nr_bands: 'NR bands', cell_lock: 'Cell lock',
+		not_locked: 'Not locked', slot: 'Slot', operator: 'Operator', registration: 'Registration',
+		number: 'Number', show_ids: 'Show identifiers', hide_ids: 'Hide identifiers',
+		allowed: 'Allowed', nsa_only: 'NSA only', card: 'SIM ', home: 'Home', roaming_reg: 'Roaming',
+		idle_reg: 'Not registered', denied: 'Denied',
 		since_boot: 'Since boot', network: 'Network', clients: 'Clients', battery: 'Battery',
 		bandwidth: 'Bandwidth', neighbours: 'Neighbours', uptime: 'Uptime', wan_uptime: 'Online',
 		load: 'Load', memory: 'Memory', brightness: 'Brightness', reconnect: 'Reconnect',
@@ -63,7 +78,10 @@ let smsUnread = null;      // the unread ids at the last poll
 let smsArmed = null;       // the delete button's second-press timer
 
 // the pages, in order (the digit keys count from 1)
-const P = { overview: 0, signal: 1, sms: 2, hotspot: 3, device: 4 };
+const P = { overview: 0, signal: 1, sms: 2, hotspot: 3, device: 4, advanced: 5 };
+let adv = null;            // the last /api/advanced
+let advTimer = null;
+let showIds = false;
 
 const $ = (id) => document.getElementById(id);
 const pages = Array.from(document.querySelectorAll('.page'));
@@ -338,6 +356,13 @@ function showPage(n) {
 	} else if (smsOpen != null) {
 		closeSms();
 	}
+	clearInterval(advTimer);
+	if (page == P.advanced) {
+		loadAdvanced();
+		advTimer = setInterval(() => { if (!blank) loadAdvanced(); }, 30000);
+	} else if (showIds) {
+		hideIds();
+	}
 }
 
 function focusables() {
@@ -379,7 +404,7 @@ function keyKind(e) {
 	if (k == 'Enter' || k == 'Select' || k == 'Accept' || c == 13) return 'ok';
 	if (k == 'BrowserBack' || k == 'GoBack' || k == 'Backspace' || k == 'Escape' || c == 8 || c == 27 || c == 166) return 'back';
 	if (k == 'Power' || k == 'PowerOff' || k == 'Standby' || k == 'Sleep') return 'power';
-	if (k >= '1' && k <= '5' && k.length == 1) return 'page' + k;
+	if (k >= '1' && k <= '6' && k.length == 1) return 'page' + k;
 	return null;
 }
 
@@ -569,6 +594,71 @@ $('sv-delete').addEventListener('click', async () => {
 	smsList = smsList.filter((m) => m.id != id);
 	closeSms();
 	loadSms();
+});
+
+/* ---------- advanced ---------- */
+
+const REG_WORD = { home: 'home', roaming: 'roaming_reg', idle: 'idle_reg', denied: 'denied', searching: 'searching' };
+
+async function loadAdvanced() {
+	try {
+		const r = await fetch('/api/advanced', { cache: 'no-store' });
+		if (r.ok) adv = await r.json();
+	} catch (e) {
+		console.log('advanced: ' + e);
+	}
+	if (adv) renderAdvanced(adv);
+}
+
+function renderAdvanced(a) {
+	const d = a.device ?? {}, b = a.baseband, s = a.sim;
+	setText('ad-model', d.model ?? '--');
+	setText('ad-os', d.os ?? '--');
+	setText('ad-image', d.image ?? '--');
+	setText('ad-kernel', d.kernel ?? '--');
+	if (d.disk) {
+		const [u, uu] = fmtBytes(d.disk.used), [tt, tu] = fmtBytes(d.disk.total);
+		setText('ad-disk', `${u} ${uu} / ${tt} ${tu}`);
+	}
+	setText('ad-temp', d.thermal ? `${d.thermal.temp.toFixed(0)} °C` : '--');
+	setText('ad-bat', [d.battery_mv ? (d.battery_mv / 1000).toFixed(2) + ' V' : null,
+		d.battery_temp != null ? d.battery_temp.toFixed(0) + ' °C' : null].filter(Boolean).join(' · ') || '--');
+
+	setText('ad-bb', b ? [b.manufacturer, b.model].filter(Boolean).join(' ') : t('no_modem'));
+	setText('ad-sa', b?.sa_allowed == null ? '--' : b.sa_allowed ? t('allowed') : t('nsa_only'));
+	setText('ad-modes', b?.modes?.replace(/^allowed: /, '').replace(/; preferred: none$/, '') ?? '--');
+	setHTML('ad-fw', (b?.firmware ?? []).map((f) => `${esc(f.name)}: ${esc(f.value)}`).join('<br>'));
+
+	const bands = (list, pre) => list?.length ? list.map((x) => pre + x).join(' ') : t('not_locked');
+	setText('ad-lte', b ? bands(b.lte_lock, 'B') : '--');
+	setText('ad-nr', b ? bands(b.nr_lock, 'n') : '--');
+	const cells = [...(b?.lte_cell_lock ?? []).map((c) => `LTE ${c.arfcn}/${c.pci}`),
+		...(b?.nr_cell_lock ?? []).map((c) => `NR ${c.arfcn}/${c.pci}`)];
+	setText('ad-cell', b ? (cells.length ? cells.join(', ') : t('not_locked')) : '--');
+
+	setText('ad-slot', s?.active_slot ? t('card') + s.active_slot : '--');
+	setText('ad-op', s ? [s.operator, s.operator_code].filter(Boolean).join(' · ') || '--' : '--');
+	setText('ad-reg', s?.registration ? t(REG_WORD[s.registration] ?? s.registration) : '--');
+}
+
+function hideIds() {
+	showIds = false;
+	$('ad-ids').hidden = true;
+	$('ad-showids').textContent = t('show_ids');
+	for (const id of ['id-imei', 'id-iccid', 'id-imsi', 'id-num']) setText(id, '--');
+}
+
+$('ad-showids').addEventListener('click', async () => {
+	if (showIds) return hideIds();
+	const r = await fetch('/api/identity', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+	if (!r) return;
+	showIds = true;
+	setText('id-imei', r.imei ?? '--');
+	setText('id-iccid', r.iccid ?? '--');
+	setText('id-imsi', r.imsi ?? '--');
+	setText('id-num', r.numbers?.length ? r.numbers.join(', ') : '--');
+	$('ad-ids').hidden = false;
+	$('ad-showids').textContent = t('hide_ids');
 });
 
 /* ---------- actions ---------- */

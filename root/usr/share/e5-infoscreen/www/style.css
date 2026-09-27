@@ -137,6 +137,11 @@ html, body {
 .btn.danger { background: #5a2420; }
 .btn.danger.armed { background: var(--poor); color: #000; }
 
+/* advanced */
+.label.sect { color: var(--accent); font-weight: bold; }
+.fw { grid-column: 1 / -1; font-size: 11px; color: var(--dim); line-height: 1.5; word-break: break-all; }
+#ad-ids { margin-bottom: 8px; }
+
 /* hotspot */
 .qr { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 #hs-qr { width: 168px; height: 168px; background: #fff; border-radius: 6px; padding: 4px; }
