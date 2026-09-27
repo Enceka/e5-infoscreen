@@ -19,8 +19,9 @@ The status bar carries the operator, the technology, signal bars, the battery
 and the time, and ✉ with the number of unread messages.  A new message lights
 the screen and opens itself (e5-linux's `e5-sms-notify` vibrates and keeps the
 unread list, `/tmp/run/e5-sms/unread`; `e5-notify.sms.screen=0` turns the
-lighting up off).  Opening the SMS page marks the messages read.  The SIM's and the device's identities (own number, IMEI, IMSI)
-are never shown or served.
+lighting up off).  Opening the SMS page marks the messages read.  The SIM's
+and the device's identities (own number, IMEI, IMSI) are never shown or
+served.
 
 ## How it works
 
