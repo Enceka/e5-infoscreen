@@ -1,0 +1,14 @@
+# OpenWrt 25.12 packages the info screen needs (apk add $(grep -v '^#' packages.txt))
+cage
+cog
+seatd
+libmesa-panfrost
+uhttpd
+uhttpd-mod-ucode
+ucode-mod-fs
+ucode-mod-ubus
+ucode-mod-uci
+qrencode
+fontconfig
+dejavu-fonts-ttf-DejaVuSans
+dejavu-fonts-ttf-DejaVuSans-Bold

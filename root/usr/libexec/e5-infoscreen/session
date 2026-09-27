@@ -1,0 +1,44 @@
+#!/bin/sh
+# cage + cog on the panel, run by /etc/init.d/e5-infoscreen (instance "ui").
+export XDG_RUNTIME_DIR=/tmp/run/e5-infoscreen
+mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+export LIBSEAT_BACKEND=seatd
+export XKB_DEFAULT_LAYOUT=us
+export HOME=/tmp/run/e5-infoscreen
+
+# seatd and the api instance start next to this one
+i=0
+while [ ! -S /run/seatd.sock ] && [ $i -lt 50 ]; do sleep 0.2; i=$((i + 1)); done
+i=0
+# (8088 = 0x1F98, listening = state 0A)
+while ! grep -q ':1F98 00000000:0000 0A' /proc/net/tcp && [ $i -lt 50 ]; do sleep 0.2; i=$((i + 1)); done
+
+# cog and its WebKit processes outlive cage when cage is stopped -- and then
+# spin, with no compositor to talk to -- so this script stays the procd
+# instance and takes them down with it, whichever of the two ends first.
+CLIENTS="cog WPEWebProcess WPENetworkProcess"
+stop_clients() {
+	killall -q $CLIENTS 2>/dev/null
+	sleep 0.5
+	killall -q -9 $CLIENTS 2>/dev/null
+}
+on_term() {
+	[ -n "$CAGE" ] && kill -TERM "$CAGE" 2>/dev/null
+	stop_clients
+	exit 0
+}
+trap on_term TERM INT
+# leftovers of an earlier session (killed without this script's cleanup)
+stop_clients
+
+# -d: no client-side decorations.  cog: the page, black behind it, the page's
+# console into the log (logread -e e5-infoscreen), a new web process if one dies
+/usr/bin/cage -d -- /usr/bin/cog -P wl --bg-color=black \
+	--enable-write-console-messages-to-stdout=true \
+	--webprocess-failure=restart \
+	http://127.0.0.1:8088/ &
+CAGE=$!
+wait "$CAGE"
+rc=$?
+stop_clients
+exit $rc

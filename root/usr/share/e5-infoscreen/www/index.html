@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>E5</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="bar">
+	<div class="left">
+		<span id="bar-op">--</span>
+		<span id="bar-tech" class="badge">--</span>
+	</div>
+	<div class="right">
+		<span id="bar-bars" class="bars"><i></i><i></i><i></i><i></i></span>
+		<span id="bar-bat" class="bat"><b></b></span>
+		<span id="bar-batpct">--</span>
+		<span id="bar-clock">--:--</span>
+	</div>
+</header>
+
+<main id="pages">
+	<!-- overview -->
+	<section class="page" data-title="overview">
+		<div class="card rates">
+			<div class="rate"><span class="arrow">↓</span><span id="ov-rx" class="big">--</span><span id="ov-rx-u" class="unit"></span></div>
+			<div class="rate"><span class="arrow up">↑</span><span id="ov-tx" class="big">--</span><span id="ov-tx-u" class="unit"></span></div>
+			<div class="sub"><span data-t="since_boot"></span> <span id="ov-total">--</span></div>
+		</div>
+		<div class="card row">
+			<span class="label" data-t="network"></span>
+			<span id="ov-wan" class="value"></span>
+		</div>
+		<div class="card row">
+			<span class="label" data-t="hotspot"></span>
+			<span id="ov-wifi" class="value"></span>
+		</div>
+		<div class="card row">
+			<span class="label" data-t="clients"></span>
+			<span id="ov-clients" class="value"></span>
+		</div>
+		<div class="card row">
+			<span class="label" data-t="battery"></span>
+			<span id="ov-bat" class="value"></span>
+		</div>
+	</section>
+
+	<!-- signal -->
+	<section class="page" data-title="signal">
+		<div class="card cellhead">
+			<span id="sg-tech" class="big">--</span>
+			<span id="sg-band" class="big band">--</span>
+			<div id="sg-op" class="sub">--</div>
+		</div>
+		<div class="card meter"><div class="mh"><span>RSRP</span><span id="sg-rsrp">--</span></div><div class="track"><div id="sg-rsrp-bar"></div></div></div>
+		<div class="card meter"><div class="mh"><span>RSRQ</span><span id="sg-rsrq">--</span></div><div class="track"><div id="sg-rsrq-bar"></div></div></div>
+		<div class="card meter"><div class="mh"><span>SINR</span><span id="sg-sinr">--</span></div><div class="track"><div id="sg-sinr-bar"></div></div></div>
+		<div class="card grid">
+			<span class="label">PCI</span><span id="sg-pci" class="value">--</span>
+			<span class="label">ARFCN</span><span id="sg-arfcn" class="value">--</span>
+			<span class="label" data-t="bandwidth"></span><span id="sg-bw" class="value">--</span>
+			<span class="label" data-t="neighbours"></span><span id="sg-nb" class="value">--</span>
+		</div>
+	</section>
+
+	<!-- hotspot -->
+	<section class="page" data-title="hotspot">
+		<div class="card row">
+			<span id="hs-ssid" class="value strong">--</span>
+			<button id="hs-toggle" class="btn"></button>
+		</div>
+		<div class="card qr">
+			<div id="hs-qr"></div>
+			<div id="hs-key" class="sub"></div>
+			<button id="hs-showkey" class="btn small" data-t="show_key"></button>
+		</div>
+		<div class="card list">
+			<div class="lh"><span data-t="clients"></span> <span id="hs-count"></span></div>
+			<div id="hs-list"></div>
+		</div>
+	</section>
+
+	<!-- device -->
+	<section class="page" data-title="device">
+		<div class="card grid">
+			<span class="label" data-t="battery"></span><span id="dv-bat" class="value">--</span>
+			<span class="label" data-t="uptime"></span><span id="dv-up" class="value">--</span>
+			<span class="label" data-t="wan_uptime"></span><span id="dv-wanup" class="value">--</span>
+			<span class="label" data-t="load"></span><span id="dv-load" class="value">--</span>
+			<span class="label" data-t="memory"></span><span id="dv-mem" class="value">--</span>
+		</div>
+		<div class="card grid">
+			<span class="label">LAN</span><span id="dv-lan" class="value">--</span>
+			<span class="label">IPv4</span><span id="dv-v4" class="value">--</span>
+			<span class="label">IPv6</span><span id="dv-v6" class="value small">--</span>
+		</div>
+		<div class="card row">
+			<span class="label" data-t="brightness"></span>
+			<span class="btns">
+				<button id="dv-dim" class="btn small">−</button>
+				<span id="dv-bl" class="value">--</span>
+				<button id="dv-bright" class="btn small">+</button>
+			</span>
+		</div>
+		<div class="card row">
+			<button id="dv-reconnect" class="btn wide" data-t="reconnect"></button>
+		</div>
+	</section>
+</main>
+
+<footer id="foot">
+	<span id="foot-title"></span>
+	<span id="dots"></span>
+</footer>
+
+<div id="blank"></div>
+<div id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

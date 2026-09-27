@@ -1,0 +1,478 @@
+{%
+// The info screen's data, served by uhttpd's ucode handler on 127.0.0.1:8088
+// (/etc/init.d/e5-infoscreen).  One persistent program: the traffic rate is
+// the difference between two polls, and the modem's state is cached, since
+// every mmcli call is a D-Bus round trip to ModemManager and, for the cell
+// information, AT commands on the modem.
+//
+//   GET  /api/status         everything the pages show
+//   GET  /api/qr             the hotspot's join code (SVG, WIFI: URI)
+//   GET  /api/wifi-key       the hotspot's passphrase, when the page asks to show it
+//   POST /api/wifi           {"on": true|false}
+//   POST /api/backlight      {"level": 0-255, "save": true|false}
+//   POST /api/wan-reconnect
+//   POST /api/key            {"key": ..., "code": ..., "keyCode": ...}  (key log)
+//
+// No identity of the SIM or the device (own number, IMEI, IMSI) is returned.
+
+import { readfile, writefile, popen, open, stat, glob } from 'fs';
+import { connect } from 'ubus';
+import { cursor } from 'uci';
+
+const WAN_DEV = 'sipa_eth0';
+const WLAN_DEV = 'wlan0';
+const USB_HOST_MAC = '02:50:00:00:e5:02';   // the gadget's host_addr
+const MODEM_TTL = 10;                        // seconds
+const KEY_LOG = '/tmp/e5-infoscreen-keys.log';
+
+let bus = null;
+let prev_traffic = null;
+let modem_cache = null, modem_time = 0;
+
+function now() {
+	let c = clock(true);
+	return c[0] + c[1] / 1e9;
+}
+
+function sh(cmd) {
+	let p = popen(cmd, 'r');
+	if (!p)
+		return null;
+	let out = p.read('all');
+	p.close();
+	return out;
+}
+
+function sh_json(cmd) {
+	let out = sh(cmd);
+	if (!out)
+		return null;
+	try {
+		return json(out);
+	}
+	catch (e) {
+		return null;
+	}
+}
+
+function read_trim(path) {
+	let s = readfile(path);
+	return (s == null) ? null : trim(s);
+}
+
+function read_num(path) {
+	let s = read_trim(path);
+	return (s == null || s == '') ? null : +s;
+}
+
+function ubus_call(obj, method, args) {
+	if (!bus)
+		bus = connect();
+	let r = bus ? bus.call(obj, method, args ?? {}) : null;
+	if (r == null && bus && bus.error()) {
+		bus = connect();
+		r = bus ? bus.call(obj, method, args ?? {}) : null;
+	}
+	return r;
+}
+
+// "--" is mmcli's "no value"
+function mm_val(v) {
+	return (v == null || v == '--' || v == '') ? null : v;
+}
+
+function mm_num(v) {
+	v = mm_val(v);
+	return (v == null) ? null : +v;
+}
+
+// NR-ARFCN -> MHz (3GPP TS 38.104 5.4.2.1)
+function nr_freq(n) {
+	if (n < 600000)
+		return n * 0.005;
+	if (n < 2016667)
+		return 3000 + (n - 600000) * 0.015;
+	return 24250.08 + (n - 2016667) * 0.06;
+}
+
+// the downlink ranges of the bands a Chinese network uses, in the order a
+// frequency that two bands share is named by (n78 inside n77)
+const NR_BANDS = [
+	[ 'n28', 758, 803 ], [ 'n8', 925, 960 ], [ 'n3', 1805, 1880 ],
+	[ 'n1', 2110, 2170 ], [ 'n41', 2496, 2690 ], [ 'n78', 3300, 3800 ],
+	[ 'n77', 3300, 4200 ], [ 'n79', 4400, 5000 ]
+];
+
+// EARFCN (downlink) ranges, 3GPP TS 36.101 table 5.7.3-1
+const LTE_BANDS = [
+	[ 'B1', 0, 599 ], [ 'B3', 1200, 1949 ], [ 'B5', 2400, 2649 ],
+	[ 'B8', 3450, 3799 ], [ 'B28', 9210, 9659 ], [ 'B34', 36200, 36349 ],
+	[ 'B38', 37750, 38249 ], [ 'B39', 38250, 38649 ], [ 'B40', 38650, 39649 ],
+	[ 'B41', 39650, 41589 ]
+];
+
+function band_of(type, arfcn) {
+	if (arfcn == null)
+		return null;
+	if (type == '5gnr') {
+		let f = nr_freq(arfcn);
+		for (let b in NR_BANDS)
+			if (f >= b[1] && f <= b[2])
+				return b[0];
+	}
+	else if (type == 'lte') {
+		for (let b in LTE_BANDS)
+			if (arfcn >= b[1] && arfcn <= b[2])
+				return b[0];
+	}
+	return null;
+}
+
+// "cell type: 5gnr, serving: yes, ci: A00895006, physical ci: 131, ..." -> object
+function parse_cell(line) {
+	let cell = {};
+	for (let kv in split(line, ', ')) {
+		let i = index(kv, ': ');
+		if (i > 0)
+			cell[substr(kv, 0, i)] = substr(kv, i + 2);
+	}
+	let type = cell['cell type'];
+	let arfcn = mm_num(cell.nrarfcn ?? cell.earfcn ?? cell.uarfcn ?? cell.arfcn);
+	let bw = mm_num(cell.bandwidth);
+	return {
+		type,
+		serving: cell.serving == 'yes',
+		// (ModemManager prints the cell ids in hex)
+		pci: (mm_val(cell['physical ci']) == null) ? null : int(cell['physical ci'], 16),
+		arfcn,
+		band: band_of(type, arfcn),
+		rsrp: mm_num(cell.rsrp),
+		rsrq: mm_num(cell.rsrq),
+		sinr: mm_num(cell.sinr),
+		// Hz in ModemManager's cell info
+		bandwidth_mhz: (bw == null) ? null : bw / 1e6
+	};
+}
+
+function modem_status() {
+	if (modem_cache && now() - modem_time < MODEM_TTL)
+		return modem_cache;
+
+	let m = sh_json('mmcli -J -m any --timeout=5 2>/dev/null')?.modem;
+	if (!m) {
+		modem_cache = { present: false };
+		modem_time = now();
+		return modem_cache;
+	}
+	let g = m.generic ?? {}, g3 = m['3gpp'] ?? {};
+	let sig = sh_json('mmcli -J -m any --timeout=5 --signal-get 2>/dev/null')?.modem?.signal ?? {};
+	let cells = sh_json('mmcli -J -m any --timeout=5 --get-cell-info 2>/dev/null')?.modem?.generic?.['cell-info'] ?? [];
+
+	let tech = g['access-technologies']?.[0];
+	let s = (tech == '5gnr') ? sig['5g'] : sig.lte;
+	let serving = null, neighbours = 0;
+	for (let line in cells) {
+		let c = parse_cell(line);
+		if (c.serving && !serving)
+			serving = c;
+		else
+			neighbours++;
+	}
+
+	modem_cache = {
+		present: true,
+		state: mm_val(g.state),
+		power: mm_val(g['power-state']),
+		operator: mm_val(g3['operator-name']),
+		registration: mm_val(g3['registration-state']),
+		tech: mm_val(tech),
+		quality: mm_num(g['signal-quality']?.value),
+		sim: mm_val(g.sim) != null,
+		signal: {
+			rsrp: mm_num(s?.rsrp) ?? serving?.rsrp,
+			rsrq: mm_num(s?.rsrq) ?? serving?.rsrq,
+			snr: mm_num(s?.snr) ?? serving?.sinr
+		},
+		cell: serving,
+		neighbours
+	};
+	modem_time = now();
+	return modem_cache;
+}
+
+function traffic() {
+	let base = `/sys/class/net/${WAN_DEV}/statistics/`;
+	let rx = read_num(base + 'rx_bytes'), tx = read_num(base + 'tx_bytes');
+	let t = now();
+	let r = { rx_total: rx, tx_total: tx, rx_rate: null, tx_rate: null };
+	if (rx != null && prev_traffic && t > prev_traffic.t && rx >= prev_traffic.rx) {
+		let dt = t - prev_traffic.t;
+		r.rx_rate = (rx - prev_traffic.rx) / dt;
+		r.tx_rate = (tx - prev_traffic.tx) / dt;
+	}
+	if (rx != null)
+		prev_traffic = { t, rx, tx };
+	return r;
+}
+
+function wan_status() {
+	let w = ubus_call('network.interface.wan', 'status');
+	let w6 = ubus_call('network.interface.wan_6', 'status');
+	let v6 = null;
+	for (let a in (w6?.['ipv6-address'] ?? []))
+		v6 ??= a.address;
+	for (let a in (w?.['ipv6-address'] ?? []))
+		v6 ??= a.address;
+	let prefix = w6?.['ipv6-prefix']?.[0];
+	return {
+		up: w?.up ?? false,
+		pending: w?.pending ?? false,
+		uptime: w?.uptime ?? null,
+		ipv4: w?.['ipv4-address']?.[0]?.address ?? null,
+		ipv6: v6,
+		ipv6_prefix: prefix ? `${prefix.address}/${prefix.mask}` : null,
+		dns: w?.['dns-server'] ?? []
+	};
+}
+
+function wifi_config() {
+	let c = cursor();
+	return {
+		ssid: c.get('wireless', 'default_radio0', 'ssid'),
+		key: c.get('wireless', 'default_radio0', 'key'),
+		encryption: c.get('wireless', 'default_radio0', 'encryption'),
+		enabled: c.get('wireless', 'radio0', 'disabled') != '1' &&
+			c.get('wireless', 'default_radio0', 'disabled') != '1',
+		channel: c.get('wireless', 'radio0', 'channel'),
+		band: c.get('wireless', 'radio0', 'band')
+	};
+}
+
+function wifi_status() {
+	let cfg = wifi_config();
+	let st = ubus_call('network.wireless', 'status')?.radio0;
+	return {
+		ssid: cfg.ssid,
+		enabled: cfg.enabled,
+		up: (st?.up ?? false) && length(st?.interfaces ?? []) > 0,
+		channel: cfg.channel,
+		band: cfg.band,
+		secured: cfg.encryption != null && cfg.encryption != 'none'
+	};
+}
+
+function clients() {
+	let wifi = {};
+	for (let s in (ubus_call('iwinfo', 'assoclist', { device: WLAN_DEV })?.results ?? []))
+		wifi[lc(s.mac)] = s.signal;
+
+	let usb_up = read_trim('/sys/class/net/usb0/carrier') == '1';
+	let list = [], seen = {};
+	for (let line in split(readfile('/tmp/dhcp.leases') ?? '', '\n')) {
+		let f = split(line, ' ');
+		if (length(f) < 4)
+			continue;
+		let mac = lc(f[1]);
+		let via = null;
+		if (exists(wifi, mac))
+			via = 'wifi';
+		else if (mac == USB_HOST_MAC && usb_up)
+			via = 'usb';
+		if (!via || seen[mac])
+			continue;
+		seen[mac] = true;
+		push(list, {
+			name: (f[3] != '*') ? f[3] : null,
+			ip: f[2],
+			via,
+			signal: wifi[mac]
+		});
+	}
+	// stations without a lease (yet)
+	for (let mac, sig in wifi)
+		if (!seen[mac])
+			push(list, { name: null, ip: null, mac, via: 'wifi', signal: sig });
+	return list;
+}
+
+function battery() {
+	let b = '/sys/class/power_supply/battery/';
+	return {
+		capacity: read_num(b + 'capacity'),
+		status: read_trim(b + 'status'),
+		online: read_trim('/sys/class/power_supply/usb/online') == '1' ||
+			read_trim('/sys/class/power_supply/ac/online') == '1'
+	};
+}
+
+function system_status() {
+	let mem = {};
+	for (let line in split(readfile('/proc/meminfo') ?? '', '\n')) {
+		let m = match(line, /^(MemTotal|MemAvailable):\s+([0-9]+)/);
+		if (m)
+			mem[m[1]] = +m[2] * 1024;
+	}
+	let up = split(readfile('/proc/uptime') ?? '0', ' ')[0];
+	let load = split(readfile('/proc/loadavg') ?? '', ' ');
+	return {
+		uptime: int(+up),
+		load: +load[0],
+		mem_total: mem.MemTotal,
+		mem_available: mem.MemAvailable,
+		lan_ip: '192.168.9.1'
+	};
+}
+
+function backlight_path() {
+	let g = glob('/sys/class/backlight/*');
+	return length(g) ? g[0] : null;
+}
+
+function screen_config() {
+	let c = cursor();
+	return {
+		idle: +(c.get('e5-infoscreen', 'main', 'idle') ?? 60),
+		brightness: +(c.get('e5-infoscreen', 'main', 'brightness') ?? 120),
+		lang: c.get('e5-infoscreen', 'main', 'lang') ?? 'zh'
+	};
+}
+
+function status() {
+	let lt = localtime();
+	return {
+		time: time(),
+		clock: sprintf('%02d:%02d', lt.hour, lt.min),
+		modem: modem_status(),
+		wan: wan_status(),
+		traffic: traffic(),
+		wifi: wifi_status(),
+		clients: clients(),
+		battery: battery(),
+		system: system_status(),
+		screen: screen_config()
+	};
+}
+
+// the join code: WIFI:T:WPA;S:<ssid>;P:<key>;; with \ ; , : " escaped.  The
+// text goes to qrencode in a file, not on a command line.
+function wifi_qr() {
+	let cfg = wifi_config();
+	if (!cfg.ssid)
+		return null;
+	let esc = (s) => replace(s ?? '', /([\\;,:"])/g, '\\$1');
+	let uri = cfg.secured
+		? `WIFI:T:WPA;S:${esc(cfg.ssid)};P:${esc(cfg.key)};;`
+		: `WIFI:T:nopass;S:${esc(cfg.ssid)};;`;
+	let tmp = '/tmp/run/e5-infoscreen-qr.txt';
+	writefile(tmp, uri);
+	let svg = sh(`qrencode -t SVG -m 1 -l M -r ${tmp} -o - 2>/dev/null`);
+	writefile(tmp, '');
+	return svg;
+}
+
+function set_wifi(on) {
+	let c = cursor();
+	c.set('wireless', 'radio0', 'disabled', on ? '0' : '1');
+	c.set('wireless', 'default_radio0', 'disabled', on ? '0' : '1');
+	c.commit('wireless');
+	// hostapd takes seconds to come up or go
+	system('(wifi reload) >/dev/null 2>&1 &');
+	return true;
+}
+
+// save: the level the screen comes back to (after a blank, at the next boot)
+function set_backlight(level, save) {
+	let p = backlight_path();
+	if (!p)
+		return false;
+	let max = read_num(p + '/max_brightness') ?? 255;
+	level = int(level);
+	if (level < 0) level = 0;
+	if (level > max) level = max;
+	if (save && level > 0) {
+		let c = cursor();
+		c.set('e5-infoscreen', 'main', 'brightness', `${level}`);
+		c.commit('e5-infoscreen');
+	}
+	return writefile(p + '/brightness', `${level}\n`) != null;
+}
+
+function log_key(k) {
+	let f = open(KEY_LOG, 'a');
+	if (!f)
+		return false;
+	f.write(sprintf('%d %J\n', time(), k));
+	f.close();
+	return true;
+}
+
+function reply(code, type, body) {
+	uhttpd.send(`Status: ${code}\r\nContent-Type: ${type}\r\nCache-Control: no-store\r\n\r\n`);
+	if (body != null)
+		uhttpd.send(body);
+}
+
+function reply_json(code, obj) {
+	reply(code, 'application/json', sprintf('%J', obj));
+}
+
+// a small JSON body: with a Content-Length (fetch() from the page) or
+// chunked, without one (uclient-fetch, wget on the device)
+function read_body(env) {
+	let len = (env.CONTENT_LENGTH != null) ? +env.CONTENT_LENGTH : null;
+	if (len != null && (len <= 0 || len > 4096))
+		return {};
+	let body = '';
+	while (length(body) < (len ?? 4096)) {
+		let chunk = uhttpd.recv((len ?? 4096) - length(body));
+		if (chunk == null || chunk == '')
+			break;
+		body += chunk;
+	}
+	try {
+		return json(body) ?? {};
+	}
+	catch (e) {
+		return {};
+	}
+}
+
+global.handle_request = function(env) {
+	let path = env.PATH_INFO;
+	if (path == null) {
+		path = replace(env.REQUEST_URI ?? '', /\?.*$/, '');
+		path = replace(path, /^\/api/, '');
+	}
+	let post = env.REQUEST_METHOD == 'POST';
+
+	try {
+		if (!post && path == '/status')
+			return reply_json(200, status());
+		if (!post && path == '/qr') {
+			let svg = wifi_qr();
+			return svg ? reply(200, 'image/svg+xml', svg) : reply_json(404, { error: 'no hotspot' });
+		}
+		if (!post && path == '/wifi-key')
+			return reply_json(200, { key: wifi_config().key });
+		if (post && path == '/wifi')
+			return reply_json(200, { ok: set_wifi(!!read_body(env).on) });
+		if (post && path == '/backlight')
+		{
+			let b = read_body(env);
+			return reply_json(200, { ok: set_backlight(b.level ?? 0, !!b.save) });
+		}
+		if (post && path == '/wan-reconnect') {
+			modem_time = 0;
+			system('(ifup wan) >/dev/null 2>&1 &');
+			return reply_json(200, { ok: true });
+		}
+		if (post && path == '/key')
+			return reply_json(200, { ok: log_key(read_body(env)) });
+		return reply_json(404, { error: 'not found' });
+	}
+	catch (e) {
+		return reply_json(500, { error: `${e}` });
+	}
+};
+
+%}

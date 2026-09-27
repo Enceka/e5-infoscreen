@@ -1,0 +1,5 @@
+#!/bin/sh
+# the info screen's settings, once: a reinstall keeps what was changed since
+[ -f /etc/config/e5-infoscreen ] ||
+	cp /usr/share/e5-infoscreen/default.config /etc/config/e5-infoscreen
+exit 0
