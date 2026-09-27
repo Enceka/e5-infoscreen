@@ -715,6 +715,17 @@ function disk(path) {
 	return (length(f) >= 4) ? { total: +f[1] * 1024, used: +f[2] * 1024 } : null;
 }
 
+// a modem string without the unsolicited lines ModemManager can catch with
+// it ("+IMSREGADDR:<addresses>" in front of the model, read while the report
+// came in): the lines that are not "+NAME:" reports, joined
+function mm_clean(v) {
+	v = mm_val(v);
+	if (v == null)
+		return null;
+	let keep = filter(map(split(v, /\r?\n/), (l) => trim(l)), (l) => l != '' && !match(l, /^[+^][A-Z0-9]+:/));
+	return length(keep) ? join(' ', keep) : v;
+}
+
 function advanced() {
 	let cached = state_get('advanced', 30);
 	if (cached)
@@ -753,8 +764,8 @@ function advanced() {
 			battery_temp: (read_num(b + 'temp') == null) ? null : read_num(b + 'temp') / 10
 		},
 		baseband: m ? {
-			manufacturer: mm_val(g.manufacturer),
-			model: mm_val(g.model),
+			manufacturer: mm_clean(g.manufacturer),
+			model: mm_clean(g.model),
 			firmware: fw,
 			plugin: mm_val(g.plugin),
 			sa_allowed: (sa == null) ? null : sa == 1,
