@@ -10,10 +10,11 @@ STOP=10
 USE_PROCD=1
 
 SHARE=/usr/share/e5-infoscreen
-# Noto Sans CJK from the Debian root image this OpenWrt runs from.  Bound
-# under /usr/share/fonts, not named where it is: WebKit's web process runs in
-# a bubblewrap sandbox that sees /usr but not /mnt, and a font it cannot open
-# is drawn as garbage.
+# Noto Sans CJK: in the image when OpenWrt has one of its own (e5-linux's
+# standalone form puts it in /usr/share/fonts/e5-noto), else from the Debian
+# root image this OpenWrt runs from.  Bound under /usr/share/fonts, not named
+# where it is: WebKit's web process runs in a bubblewrap sandbox that sees
+# /usr but not /mnt, and a font it cannot open is drawn as garbage.
 CJK_SRC=/mnt/e5-disk/usr/share/fonts/opentype/noto
 CJK_DST=/usr/share/fonts/e5-noto
 
@@ -30,7 +31,8 @@ start_service() {
 		[ -w "$bl" ] && echo "$level" > "$bl"
 	done
 
-	if [ -d "$CJK_SRC" ] && ! grep -q " $CJK_DST " /proc/mounts; then
+	if [ -d "$CJK_SRC" ] && ! ls "$CJK_DST"/*.tt? >/dev/null 2>&1 &&
+	   ! grep -q " $CJK_DST " /proc/mounts; then
 		mkdir -p "$CJK_DST" && mount --bind "$CJK_SRC" "$CJK_DST"
 	fi
 

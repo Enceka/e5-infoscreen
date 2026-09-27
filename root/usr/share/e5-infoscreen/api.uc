@@ -730,7 +730,7 @@ function advanced() {
 			os: rel.DISTRIB_DESCRIPTION,
 			image: read_trim('/etc/e5/image-version'),
 			kernel: read_trim('/proc/sys/kernel/osrelease'),
-			disk: disk('/mnt/e5-disk'),
+			disk: disk('/'),    // the Debian image for the directory form, the own image standalone
 			thermal: thermal(),
 			battery_mv: (read_num(b + 'voltage_now') ?? 0) / 1000 || null,
 			battery_temp: (read_num(b + 'temp') == null) ? null : read_num(b + 'temp') / 10

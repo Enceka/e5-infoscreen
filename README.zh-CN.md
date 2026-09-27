@@ -37,9 +37,9 @@
   （`api.uc`）。数据来自 ModemManager（`mmcli -J`）、netifd、hostapd 和无线配置
   （ubus、uci），电池、背光和流量计数器取自 `/sys`。设备外部访问不到它，所以不需要
   登录；LuCI 照旧在 80 端口。
-* **字体**：Noto Sans CJK 取自 E5 上 OpenWrt 所在的 Debian 根镜像，bind 到
-  `/usr/share/fonts` 下（WebKit 的网页进程运行在沙箱里，能看到 `/usr`，看不到
-  `/mnt`）；DejaVu Sans 作后备。
+* **字体**：Noto Sans CJK。OpenWrt 有独立镜像时（e5-linux 的独立安装）字体就在镜像里；
+  否则取自 OpenWrt 所在的 Debian 根镜像，bind 到 `/usr/share/fonts` 下（WebKit 的网页
+  进程运行在沙箱里，能看到 `/usr`，看不到 `/mnt`）；DejaVu Sans 作后备。
 * **屏幕电源**：空闲超时后（默认 60 秒）或按电源键时关背光；之后的第一次触摸或按键
   只负责点亮屏幕。
 

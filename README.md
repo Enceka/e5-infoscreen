@@ -42,7 +42,8 @@ Everything is an OpenWrt package except the files in `root/`:
   the wireless configuration (ubus, uci), `/sys` for the battery, the
   backlight and the traffic counters.  Nothing outside the device reaches it,
   so it has no login; LuCI stays where it is, on port 80.
-* **Fonts**: Noto Sans CJK from the Debian root image the E5's OpenWrt runs
+* **Fonts**: Noto Sans CJK, in the image when OpenWrt has one of its own
+  (e5-linux's standalone install), else from the Debian root image it runs
   from, bound in under `/usr/share/fonts` (WebKit's sandboxed web process sees
   `/usr`, not `/mnt`); DejaVu Sans as the fallback.
 * **Screen power**: the backlight goes off after the idle time (60 s by
