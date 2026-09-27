@@ -48,7 +48,7 @@ for version 1 of all three.
 | `POST /wan-reconnect` | restarts the mobile connection |
 | `GET /advanced` | device, baseband, locks, SIM details (the 高级信息 page) |
 | `GET /identity` | `{ imei, iccid, imsi, numbers[] }` |
-| `POST /at` | `{ cmd, timeout }` -> `{ ok, reply }` or `{ ok: false, error }`: one AT command through ModemManager (the AT channel's one owner), `timeout` 1-60 s (default 10).  Refused, in any `;`-separated part: `ATZ`, `AT&F`, `+CPMS=`, `+CFUN=0`, `+SFUN=3`/`5` (the CP's AT server or the SIM gone until a reboot) and IMEI writes (`+SPIMEI=`, `+EGMR=1`) -- e5-linux's `e5-at` has the same list.  A raw console: its replies can hold identifiers. |
+| `POST /at` | `{ cmd, timeout }` -> `{ ok, reply }` or `{ ok: false, error }`: one AT command through ModemManager (the AT channel's one owner), `timeout` 1-60 s (default 10).  Refused, in any `;`-separated part: IMEI writes (`+SPIMEI=`, `+EGMR=1`) -- e5-linux's `e5-at` has the same rule.  Everything else is sent as it is, including what leaves the CP's AT server (`ATZ`, `AT&F`, `+CPMS=`) or the SIM (`+CFUN=0`, `+SFUN=3`/`5`) gone until a reboot.  A raw console: its replies can hold identifiers. |
 | `GET /at/presets` | `{ presets: [ { cmd, label } ] }`, the reads of the 高级 -> AT 指令 page |
 | `GET /settings` | `{ categories: [ { id, label, view, plugin } ] }` |
 | `GET /settings/<category>` | `{ id, label, items[] }` (section 3) |
@@ -230,7 +230,7 @@ return function(ctx) {
 | `ctx.sh(cmd)` | runs a shell command, its output (string) or `null`.  Never build `cmd` from `req` without quoting: `req` is data. |
 | `ctx.sh_json(cmd)` | the same, parsed as JSON (`null` if it is not) |
 | `ctx.run(cmd)` | runs a command, its exit status |
-| `ctx.at(cmd, timeout)` | an AT command through ModemManager (the AT channel has one owner), the reply without `OK`, or `null` -- also `null` for a refused command (the list of `/at`) |
+| `ctx.at(cmd, timeout)` | an AT command through ModemManager (the AT channel has one owner), the reply without `OK`, or `null` -- also `null` for a refused command (the rule of `/at`) |
 | `ctx.at_console(cmd, timeout)` | the same as `POST /at`: `{ ok, reply }` or `{ ok: false, error }` |
 | `ctx.modem()` | the `modem` part of `/status` |
 | `ctx.cells()` | the serving and neighbour cells, `[ { type, serving, pci, arfcn, band, rsrp, rsrq, sinr, bandwidth_mhz } ]` |

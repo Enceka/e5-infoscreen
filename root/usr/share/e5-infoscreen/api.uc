@@ -551,6 +551,17 @@ function traffic_usage() {
 
 /* ---------- advanced ---------- */
 
+// mmcli prints  response: '<reply>'  and the reply has line breaks in it
+// (a chained command answers once per part): taken between the first
+// "response: '" and the last quote -- ucode's regex has no dot-all
+function at_reply(out) {
+	let i = index(out ?? '', "response: '");
+	let j = rindex(out ?? '', "'");
+	if (i < 0 || j <= i + 11)
+		return (i >= 0) ? '' : null;
+	return trim(replace(substr(out, i + 11, j - i - 11), /\r/g, ''));
+}
+
 // an AT command through ModemManager (the AT channel has one owner); the
 // reply without the final OK, or null.  The command is single-quoted for the
 // shell: a ' in it cannot end the quoting.
@@ -558,14 +569,14 @@ function at(cmd, timeout) {
 	let q = replace(`${cmd}`, /'/g, "'\\''");
 	let t = int(timeout ?? 10);
 	if (t < 1 || t > 60) t = 10;
-	let out = sh(`mmcli -m any --timeout=${t} --command='${q}' 2>&1`);
-	let m = out ? match(out, /response: '(.*)'\s*$/s) : null;
-	return m ? trim(m[1]) : null;
+	return at_reply(sh(`mmcli -m any --timeout=${t} --command='${q}' 2>&1`));
 }
 
-// the commands no one may send, e5-at's list (e5-linux rootfs/overlay/opt/e5/
-// e5-at): after them the CP's AT server answers nobody or the SIM is not seen
-// until a reboot; and writing the IMEI.  Every ;-separated part is checked.
+
+// refused: writing the IMEI, in any ;-separated part (e5-linux's e5-at has
+// the same rule).  Everything else is sent as it is -- also the commands
+// after which the CP's AT server (ATZ, AT&F, AT+CPMS=) or the SIM (AT+CFUN=0,
+// AT+SFUN=3/5) is gone until a reboot.
 function at_refused(cmd) {
 	let s = uc(replace(`${cmd}`, /\s+/g, ''));
 	if (substr(s, 0, 2) != 'AT')
@@ -574,8 +585,6 @@ function at_refused(cmd) {
 		return 'one command, one line';
 	for (let part in split(substr(s, 2), ';')) {
 		part = replace(part, /^AT/, '');
-		if (match(part, /^(Z|&F|\+CPMS=|\+CFUN=0|\+SFUN=3|\+SFUN=5)/))
-			return "it leaves the modem's AT server or SIM dead until a reboot";
 		if (match(part, /^(\+SPIMEI=|\+EGMR=1)/))
 			return 'it writes the IMEI';
 	}
@@ -591,11 +600,11 @@ function at_console(cmd, timeout) {
 	let t = int(timeout ?? 10);
 	if (t < 1 || t > 60) t = 10;
 	let out = sh(`mmcli -m any --timeout=${t} --command='${q}' 2>&1`) ?? '';
-	let m = match(out, /response: '(.*)'\s*$/s);
-	if (m)
-		return { ok: true, reply: trim(m[1]) };
-	let e = match(out, /error: (.*)$/s);
-	return { ok: false, error: trim(e ? e[1] : out) };
+	let reply = at_reply(out);
+	if (reply != null)
+		return { ok: true, reply };
+	let i = index(out, 'error: ');
+	return { ok: false, error: trim((i >= 0) ? substr(out, i + 7) : out) };
 }
 
 // useful reads for the screen's AT page; nothing here changes the modem
