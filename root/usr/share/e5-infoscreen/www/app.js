@@ -1,12 +1,15 @@
 'use strict';
-// The E5 info screen: four pages (overview, signal, hotspot, device) fed by
-// /api/status, driven by touch (tap, swipe) and the keypad (arrows, confirm,
-// back, digits, power).  The backlight goes off after the configured idle
-// time; the first touch or key after that only wakes the screen.
+// The E5 info screen: five pages (overview, signal, SMS, hotspot, device) fed
+// by /api/status, driven by touch (tap, swipe) and the keypad (arrows,
+// confirm, back, digits, power).  The backlight goes off after the configured
+// idle time; the first touch or key after that only wakes the screen.  A new
+// SMS (e5-sms-notify's unread list) lights the screen and opens the message.
 
 const I18N = {
 	zh: {
-		overview: '概览', signal: '信号', hotspot: '热点', device: '设备',
+		overview: '概览', signal: '信号', sms: '短信', hotspot: '热点', device: '设备',
+		back: '返回', delete: '删除', delete_confirm: '再按一次删除', deleted: '已删除',
+		no_sms: '没有短信', unknown_sender: '未知号码', new_sms: '新短信',
 		since_boot: '本次开机', network: '网络', clients: '在线设备', battery: '电池',
 		bandwidth: '带宽', neighbours: '邻区', uptime: '开机时长', wan_uptime: '联网时长',
 		load: '负载', memory: '内存', brightness: '亮度', reconnect: '重新连接网络',
@@ -21,7 +24,9 @@ const I18N = {
 		excellent: '极好', good: '好', fair: '一般', weak: '弱', poor: '差'
 	},
 	en: {
-		overview: 'Overview', signal: 'Signal', hotspot: 'Hotspot', device: 'Device',
+		overview: 'Overview', signal: 'Signal', sms: 'Messages', hotspot: 'Hotspot', device: 'Device',
+		back: 'Back', delete: 'Delete', delete_confirm: 'Press again to delete', deleted: 'Deleted',
+		no_sms: 'No messages', unknown_sender: 'Unknown', new_sms: 'New message',
 		since_boot: 'Since boot', network: 'Network', clients: 'Clients', battery: 'Battery',
 		bandwidth: 'Bandwidth', neighbours: 'Neighbours', uptime: 'Uptime', wan_uptime: 'Online',
 		load: 'Load', memory: 'Memory', brightness: 'Brightness', reconnect: 'Reconnect',
@@ -38,7 +43,7 @@ const I18N = {
 };
 
 const POLL_AWAKE = 2000;
-const POLL_BLANK = 30000;
+const POLL_BLANK = 5000;     // (still quick to notice a new SMS)
 const KEY_LOG_MAX = 200;
 
 let lang = 'zh';
@@ -52,6 +57,13 @@ let showKey = false;
 let wifiPending = null;    // the state asked for, until the status shows it
 let qrFor = null;          // the SSID the QR code was made for
 let brightness = 120;
+let smsList = [];          // the last /api/sms
+let smsOpen = null;        // the id of the message on screen
+let smsUnread = null;      // the unread ids at the last poll
+let smsArmed = null;       // the delete button's second-press timer
+
+// the pages, in order (the digit keys count from 1)
+const P = { overview: 0, signal: 1, sms: 2, hotspot: 3, device: 4 };
 
 const $ = (id) => document.getElementById(id);
 const pages = Array.from(document.querySelectorAll('.page'));
@@ -152,6 +164,8 @@ function renderBar(st) {
 	bat.classList.toggle('charging', b.status == 'Charging');
 	setText('bar-batpct', b.capacity == null ? '--' : cap + '%');
 	setText('bar-clock', st.clock);
+	const n_sms = st.sms?.unread?.length ?? 0;
+	setText('bar-sms', n_sms ? '✉ ' + n_sms : '');
 }
 
 function batteryText(b) {
@@ -264,6 +278,7 @@ async function poll() {
 				resetIdle();
 			}
 			if (!blank) render(st);
+			smsCheck(st);
 		}
 	} catch (e) {
 		console.log('poll: ' + e);
@@ -317,10 +332,16 @@ function showPage(n) {
 	$('foot-title').textContent = t(pages[page].dataset.title);
 	if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
 	pages[page].scrollTop = 0;
+	if (page == P.sms) {
+		loadSms();
+		markSmsRead();
+	} else if (smsOpen != null) {
+		closeSms();
+	}
 }
 
 function focusables() {
-	return Array.from(pages[page].querySelectorAll('button'));
+	return Array.from(pages[page].querySelectorAll('button')).filter((b) => b.offsetParent !== null);
 }
 
 function moveFocus(dir) {
@@ -358,7 +379,7 @@ function keyKind(e) {
 	if (k == 'Enter' || k == 'Select' || k == 'Accept' || c == 13) return 'ok';
 	if (k == 'BrowserBack' || k == 'GoBack' || k == 'Backspace' || k == 'Escape' || c == 8 || c == 27 || c == 166) return 'back';
 	if (k == 'Power' || k == 'PowerOff' || k == 'Standby' || k == 'Sleep') return 'power';
-	if (k >= '1' && k <= '4' && k.length == 1) return 'page' + k;
+	if (k >= '1' && k <= '5' && k.length == 1) return 'page' + k;
 	return null;
 }
 
@@ -384,15 +405,17 @@ document.addEventListener('keydown', (e) => {
 			document.activeElement.click();
 		break;
 	case 'back':
-		if (document.activeElement && document.activeElement.tagName == 'BUTTON')
+		if (page == P.sms && smsOpen != null)
+			closeSms();
+		else if (document.activeElement && document.activeElement.tagName == 'BUTTON')
 			document.activeElement.blur();
 		else
-			showPage(0);
+			showPage(P.overview);
 		break;
 	case 'power':
 		if (!e.repeat) setBlank(true);
 		break;
-	case 'hotspot': showPage(2); break;
+	case 'hotspot': showPage(P.hotspot); break;
 	default:
 		if (kind && kind.startsWith('page')) showPage(+kind.slice(4) - 1);
 	}
@@ -424,6 +447,129 @@ document.addEventListener('touchend', (e) => {
 }, true);
 
 document.addEventListener('mousedown', () => { if (!blank) resetIdle(); }, true);
+
+
+/* ---------- SMS ---------- */
+
+// "2026-09-27T10:25:31+08:00" -> "10:25" today, "09-26 10:25" before
+function fmtSmsTime(ts) {
+	const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(ts ?? '');
+	if (!m) return '';
+	const now = new Date();
+	const today = now.getFullYear() == +m[1] && now.getMonth() + 1 == +m[2] && now.getDate() == +m[3];
+	return (today ? '' : `${m[2]}-${m[3]} `) + `${m[4]}:${m[5]}`;
+}
+
+async function loadSms() {
+	try {
+		const r = await fetch('/api/sms', { cache: 'no-store' });
+		if (r.ok) smsList = (await r.json()).messages ?? [];
+	} catch (e) {
+		console.log('sms: ' + e);
+	}
+	renderSmsList();
+	return smsList;
+}
+
+function renderSmsList() {
+	const unread = new Set(last?.sms?.unread ?? []);
+	const focusedId = document.activeElement?.dataset?.sms;
+	setHTML('sms-list', smsList.length ? smsList.map((m) =>
+		`<button class="smsitem${m.unread || unread.has(m.id) ? ' unread' : ''}" data-sms="${m.id}">` +
+		`<div class="top"><span class="from">${esc(m.number ?? t('unknown_sender'))}</span>` +
+		`<span class="when">${esc(fmtSmsTime(m.time))}</span></div>` +
+		`<div class="preview">${esc((m.text ?? '').replace(/\s+/g, ' '))}</div></button>`
+	).join('') : `<div class="card sub">${esc(t('no_sms'))}</div>`);
+	if (focusedId) {
+		const el = document.querySelector(`[data-sms="${focusedId}"]`);
+		if (el) el.focus();
+	}
+}
+
+function openSms(id) {
+	const m = smsList.find((x) => x.id == id);
+	if (!m) return;
+	smsOpen = m.id;
+	setText('sv-from', m.number ?? t('unknown_sender'));
+	setText('sv-time', fmtSmsTime(m.time));
+	setText('sv-text', m.text ?? '');
+	disarmDelete();
+	$('sms-list').hidden = true;
+	$('sms-view').hidden = false;
+	pages[P.sms].scrollTop = 0;
+}
+
+function closeSms() {
+	const id = smsOpen;
+	smsOpen = null;
+	disarmDelete();
+	$('sms-view').hidden = true;
+	$('sms-list').hidden = false;
+	renderSmsList();
+	const el = id != null && document.querySelector(`[data-sms="${id}"]`);
+	if (el && page == P.sms) el.focus();
+}
+
+function disarmDelete() {
+	clearTimeout(smsArmed);
+	smsArmed = null;
+	const b = $('sv-delete');
+	b.classList.remove('armed');
+	b.textContent = t('delete');
+}
+
+function markSmsRead() {
+	if (blank || !(last?.sms?.unread?.length)) return;
+	post('sms-read');
+	last.sms.unread = [];
+	smsUnread = [];
+	setText('bar-sms', '');
+}
+
+// a message in the unread list that was not there at the last poll: light
+// the screen (if e5-notify.sms.screen) and show it
+async function smsCheck(st) {
+	const now = st.sms?.unread ?? [];
+	const before = smsUnread;
+	smsUnread = now;
+	if (before == null) return;                 // the first poll: nothing is new
+	const fresh = now.filter((id) => !before.includes(id));
+	if (!fresh.length) {
+		if (page == P.sms && !blank && smsOpen == null && now.length != before.length) loadSms();
+		return;
+	}
+	if (!st.sms.screen) return;
+	if (blank) setBlank(false);
+	toast(t('new_sms'));
+	if (page != P.sms) showPage(P.sms);
+	await loadSms();
+	openSms(Math.max(...fresh));
+	markSmsRead();
+}
+
+$('sms-list').addEventListener('click', (e) => {
+	const b = e.target.closest('[data-sms]');
+	if (b) openSms(+b.dataset.sms);
+});
+
+$('sv-back').addEventListener('click', () => closeSms());
+
+$('sv-delete').addEventListener('click', async () => {
+	const b = $('sv-delete');
+	if (!smsArmed) {
+		b.classList.add('armed');
+		b.textContent = t('delete_confirm');
+		smsArmed = setTimeout(disarmDelete, 3000);
+		return;
+	}
+	const id = smsOpen;
+	disarmDelete();
+	const r = await post('sms-delete', { id });
+	toast(r?.ok ? t('deleted') : '✗');
+	smsList = smsList.filter((m) => m.id != id);
+	closeSms();
+	loadSms();
+});
 
 /* ---------- actions ---------- */
 

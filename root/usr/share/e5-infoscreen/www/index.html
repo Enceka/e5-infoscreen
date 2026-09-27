@@ -13,6 +13,7 @@
 		<span id="bar-tech" class="badge">--</span>
 	</div>
 	<div class="right">
+		<span id="bar-sms" class="smsmark"></span>
 		<span id="bar-bars" class="bars"><i></i><i></i><i></i><i></i></span>
 		<span id="bar-bat" class="bat"><b></b></span>
 		<span id="bar-batpct">--</span>
@@ -61,6 +62,21 @@
 			<span class="label">ARFCN</span><span id="sg-arfcn" class="value">--</span>
 			<span class="label" data-t="bandwidth"></span><span id="sg-bw" class="value">--</span>
 			<span class="label" data-t="neighbours"></span><span id="sg-nb" class="value">--</span>
+		</div>
+	</section>
+
+	<!-- SMS: the list, or one message -->
+	<section class="page" data-title="sms">
+		<div id="sms-list"></div>
+		<div id="sms-view" hidden>
+			<div class="card">
+				<div class="smshead"><span id="sv-from" class="strong"></span><span id="sv-time" class="sub"></span></div>
+				<div id="sv-text" class="smstext"></div>
+			</div>
+			<div class="card row">
+				<button id="sv-back" class="btn" data-t="back"></button>
+				<button id="sv-delete" class="btn danger" data-t="delete"></button>
+			</div>
 		</div>
 	</section>
 

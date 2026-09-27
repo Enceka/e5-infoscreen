@@ -8,6 +8,9 @@
 //   GET  /api/status         everything the pages show
 //   GET  /api/qr             the hotspot's join code (SVG, WIFI: URI)
 //   GET  /api/wifi-key       the hotspot's passphrase, when the page asks to show it
+//   GET  /api/sms            the messages, newest first, and which are unread
+//   POST /api/sms-read       the messages have been seen (e5-sms-notify read)
+//   POST /api/sms-delete     {"id": N}
 //   POST /api/wifi           {"on": true|false}
 //   POST /api/backlight      {"level": 0-255, "save": true|false}
 //   POST /api/wan-reconnect
@@ -24,10 +27,14 @@ const WLAN_DEV = 'wlan0';
 const USB_HOST_MAC = '02:50:00:00:e5:02';   // the gadget's host_addr
 const MODEM_TTL = 10;                        // seconds
 const KEY_LOG = '/tmp/e5-infoscreen-keys.log';
+// e5-linux's OpenWrt: e5-sms-notify keeps the unread messages here
+const SMS_UNREAD = '/tmp/run/e5-sms/unread';
+const SMS_PATH = '/org/freedesktop/ModemManager1/SMS/';
 
 let bus = null;
 let prev_traffic = null;
 let modem_cache = null, modem_time = 0;
+let sms_cache = {};           // id -> message; a received message does not change
 
 function now() {
 	let c = clock(true);
@@ -337,6 +344,80 @@ function screen_config() {
 	};
 }
 
+/* ---------- SMS ---------- */
+
+function sms_unread() {
+	let ids = [];
+	for (let line in split(readfile(SMS_UNREAD) ?? '', '\n')) {
+		let m = match(line, /\/SMS\/([0-9]+)$/);
+		if (m)
+			push(ids, +m[1]);
+	}
+	return ids;
+}
+
+function sms_one(id) {
+	if (sms_cache[id] && sms_cache[id].state == 'received')
+		return sms_cache[id];
+	let s = sh_json(`mmcli -J -m any --timeout=5 -s ${SMS_PATH}${id} 2>/dev/null`)?.sms;
+	if (!s)
+		return null;
+	let c = s.content ?? {}, p = s.properties ?? {};
+	let msg = {
+		id,
+		number: mm_val(c.number),
+		text: mm_val(c.text) ?? '',
+		time: mm_val(p.timestamp),
+		state: mm_val(p.state),
+		type: mm_val(p['pdu-type'])
+	};
+	sms_cache[id] = msg;
+	return msg;
+}
+
+function sms_list() {
+	// (mmcli names this list with one flat key, "modem.messaging.sms")
+	let lj = sh_json('mmcli -J -m any --timeout=5 --messaging-list-sms 2>/dev/null');
+	let paths = lj?.['modem.messaging.sms'] ?? lj?.modem?.messaging?.sms ?? [];
+	let unread = {}, list = [], live = {};
+	for (let id in sms_unread())
+		unread[id] = true;
+	for (let p in paths) {
+		let m = match(p, /\/SMS\/([0-9]+)$/);
+		if (!m)
+			continue;
+		let msg = sms_one(+m[1]);
+		if (!msg || msg.type == 'submit')     // (the ones this device sent)
+			continue;
+		live[msg.id] = true;
+		push(list, { ...msg, unread: !!unread[msg.id] });
+	}
+	for (let id in keys(sms_cache))
+		if (!live[id])
+			delete sms_cache[id];
+	// newest first: the timestamps are ISO 8601 with the network's offset
+	return sort(list, (a, b) => (a.time == b.time) ? b.id - a.id : ((a.time ?? '') < (b.time ?? '') ? 1 : -1));
+}
+
+function sms_delete(id) {
+	id = int(id);
+	if (id < 0 || `${id}` == 'NaN')
+		return false;
+	let ok = system(`mmcli -m any --timeout=10 --messaging-delete-sms=${SMS_PATH}${id} >/dev/null 2>&1`) == 0;
+	if (ok) {
+		delete sms_cache[id];
+		// and out of the unread list
+		let rest = filter(split(readfile(SMS_UNREAD) ?? '', '\n'), (l) => l != '' && l != `${SMS_PATH}${id}`);
+		writefile(SMS_UNREAD, length(rest) ? join('\n', rest) + '\n' : '');
+	}
+	return ok;
+}
+
+function sms_config() {
+	let c = cursor();
+	return { screen: c.get('e5-notify', 'sms', 'screen') != '0' };
+}
+
 function status() {
 	let lt = localtime();
 	return {
@@ -349,7 +430,8 @@ function status() {
 		clients: clients(),
 		battery: battery(),
 		system: system_status(),
-		screen: screen_config()
+		screen: screen_config(),
+		sms: { unread: sms_unread(), ...sms_config() }
 	};
 }
 
@@ -452,6 +534,12 @@ global.handle_request = function(env) {
 			let svg = wifi_qr();
 			return svg ? reply(200, 'image/svg+xml', svg) : reply_json(404, { error: 'no hotspot' });
 		}
+		if (!post && path == '/sms')
+			return reply_json(200, { messages: sms_list() });
+		if (post && path == '/sms-read')
+			return reply_json(200, { ok: system('e5-sms-notify read >/dev/null 2>&1 || : > ' + SMS_UNREAD) == 0 });
+		if (post && path == '/sms-delete')
+			return reply_json(200, { ok: sms_delete(read_body(env).id ?? -1) });
 		if (!post && path == '/wifi-key')
 			return reply_json(200, { key: wifi_config().key });
 		if (post && path == '/wifi')

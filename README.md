@@ -11,11 +11,15 @@ device at a glance, and is driven by touch and by the keypad.
 |---|---|
 | Overview | download/upload rate, traffic since boot, network state (5G/4G, IPv4/IPv6), hotspot, clients, battery |
 | Signal | technology and band (n41, B3, ...), RSRP/RSRQ/SINR with grades, PCI, ARFCN, bandwidth, neighbour cells |
+| SMS | the received messages, newest first, unread ones marked; open one to read it, delete it (press twice) |
 | Hotspot | SSID, a QR code to join, the passphrase on request, on/off, the clients (Wi-Fi and USB) |
 | Device | battery, uptime, time online, load, memory, LAN/IPv4/IPv6 addresses, brightness, reconnect |
 
 The status bar carries the operator, the technology, signal bars, the battery
-and the time.  The SIM's and the device's identities (own number, IMEI, IMSI)
+and the time, and ✉ with the number of unread messages.  A new message lights
+the screen and opens itself (e5-linux's `e5-sms-notify` vibrates and keeps the
+unread list, `/tmp/run/e5-sms/unread`; `e5-notify.sms.screen=0` turns the
+lighting up off).  Opening the SMS page marks the messages read.  The SIM's and the device's identities (own number, IMEI, IMSI)
 are never shown or served.
 
 ## How it works
@@ -51,8 +55,8 @@ Measured on the device (WebKit's names in brackets):
 | left / right | previous / next page |
 | up / down | move between the buttons of a page, or scroll it |
 | confirm (`KEY_SELECT`, "Unidentified") | press the focused button |
-| back (`KEY_BACK` + BackSpace) | leave the button, or go to the first page |
-| 1-4 | go to that page |
+| back (`KEY_BACK` + BackSpace) | close the message, leave the button, or go to the first page |
+| 1-5 | go to that page |
 | side key (`F1`) | the hotspot page (to show the QR code) |
 | power (`PowerOff`) | screen off |
 | volume | left to the volume |
