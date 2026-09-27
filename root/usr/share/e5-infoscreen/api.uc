@@ -395,6 +395,10 @@ function battery() {
 		// zero point): + into the battery, - out of it; µA and µV in sysfs
 		current_ma: (cur == null) ? null : int(cur / 1000),
 		voltage_mv: (volt == null) ? null : int(volt / 1000),
+		// e5-linux's e5-charge: its limit, and whether it has stopped charging
+		limit: (cursor().get('e5-charge', 'main', 'enabled') == '1')
+			? +(cursor().get('e5-charge', 'main', 'stop') ?? 80) : null,
+		paused: read_trim('/tmp/run/e5-charge/stopped') == '1',
 		online: read_trim('/sys/class/power_supply/usb/online') == '1' ||
 			read_trim('/sys/class/power_supply/ac/online') == '1'
 	};

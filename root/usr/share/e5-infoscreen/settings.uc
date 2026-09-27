@@ -193,7 +193,7 @@ const network = {
 			for (let i = 0; i < 6; i++) {
 				let now = testmode();
 				if (now && now.card1 == int(value)) return null;
-				ctx.run('sleep 0.5');
+				sleep(500);
 			}
 			return 'the modem did not take it';
 		}
@@ -310,9 +310,13 @@ const charge = uci_category('charge', L('充电', 'Charging'), [
 	let st = ctx.sh('/usr/libexec/e5-charge status 2>/dev/null') ?? '';
 	let m = match(st, /capacity=([0-9]+) status=([^ ]+)/);
 	let once = match(st, /full_once=1/);
+	let paused = match(st, /stopped=1/);
+	let word = !m ? null : paused ? L('已暂停充电', 'paused')
+		: (m[2] == 'Charging') ? L('充电中', 'charging') : (m[2] == 'Full') ? L('已充满', 'full')
+		: (m[2] == 'Discharging') ? L('使用电池', 'on battery') : L(m[2], m[2]);
 	return [
 		{ id: 'state', type: 'info', label: L('当前', 'Now'),
-		  value: m ? `${m[1]}% · ${m[2]}` : '--' },
+		  value: m ? L(`${m[1]}% · ${word.zh}`, `${m[1]}% · ${word.en}`) : '--' },
 		{ id: 'full_once', type: 'action', label: once ? L('正在临时充满…', 'Charging to full…') : L('临时充满一次', 'Charge to full once'),
 		  note: L('充到 100% 后回到上限', 'Back to the limit at 100 %') }
 	];

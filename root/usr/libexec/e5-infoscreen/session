@@ -10,12 +10,13 @@ TZ=$(cat /etc/TZ 2>/dev/null)
 export TZ=${TZ:-UTC0}
 export HOME=/tmp/run/e5-infoscreen
 
-# seatd and the api instance start next to this one
+# seatd and the api instance start next to this one: wait for both (whole
+# seconds -- OpenWrt's busybox sleep takes no fractions)
 i=0
-while [ ! -S /run/seatd.sock ] && [ $i -lt 50 ]; do sleep 0.2; i=$((i + 1)); done
+while [ ! -S /run/seatd.sock ] && [ $i -lt 10 ]; do sleep 1; i=$((i + 1)); done
 i=0
 # (8088 = 0x1F98, listening = state 0A)
-while ! grep -q ':1F98 00000000:0000 0A' /proc/net/tcp && [ $i -lt 50 ]; do sleep 0.2; i=$((i + 1)); done
+while ! grep -q ':1F98 00000000:0000 0A' /proc/net/tcp && [ $i -lt 10 ]; do sleep 1; i=$((i + 1)); done
 
 # cog and its WebKit processes outlive cage when cage is stopped -- and then
 # spin, with no compositor to talk to -- so this script stays the procd
@@ -23,7 +24,7 @@ while ! grep -q ':1F98 00000000:0000 0A' /proc/net/tcp && [ $i -lt 50 ]; do slee
 CLIENTS="cog WPEWebProcess WPENetworkProcess"
 stop_clients() {
 	killall -q $CLIENTS 2>/dev/null
-	sleep 0.5
+	sleep 1
 	killall -q -9 $CLIENTS 2>/dev/null
 }
 on_term() {
