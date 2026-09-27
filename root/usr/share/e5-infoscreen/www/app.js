@@ -17,7 +17,7 @@ const I18N = {
 		apply: '应用', clear: '全部取消', save: '保存', saved: '已保存', failed: '失败',
 		online: '在线', offline: '离线', blocked: '已禁止上网', block: '禁止上网', unblock: '允许上网',
 		kick: '踢下 Wi-Fi', kicked: '已踢下线', mac: 'MAC', via: '连接', no_devices: '没有设备',
-		loading: '读取中…', system: '系统', image: '镜像版本', kernel: '内核',
+		loading: '读取中…', app_settings: '应用设置', system: '系统', image: '镜像版本', kernel: '内核',
 		storage: '存储', temperature: '温度', baseband: '基带', modes: '网络模式',
 		locks: '锁定', lte_bands: 'LTE 频段', nr_bands: 'NR 频段', cell_lock: '锁小区',
 		not_locked: '未锁定', slot: '卡槽', operator: '运营商', registration: '注册',
@@ -47,7 +47,7 @@ const I18N = {
 		apply: 'Apply', clear: 'Clear all', save: 'Save', saved: 'Saved', failed: 'Failed',
 		online: 'Online', offline: 'Offline', blocked: 'Blocked', block: 'Block internet', unblock: 'Allow internet',
 		kick: 'Kick off Wi-Fi', kicked: 'Kicked', mac: 'MAC', via: 'Via', no_devices: 'No devices',
-		loading: 'Loading…', system: 'System', image: 'Image', kernel: 'Kernel',
+		loading: 'Loading…', app_settings: 'App settings', system: 'System', image: 'Image', kernel: 'Kernel',
 		storage: 'Storage', temperature: 'Temperature', baseband: 'Baseband', modes: 'Modes',
 		locks: 'Locks', lte_bands: 'LTE bands', nr_bands: 'NR bands', cell_lock: 'Cell lock',
 		not_locked: 'Not locked', slot: 'Slot', operator: 'Operator', registration: 'Registration',
@@ -811,12 +811,16 @@ function stRow(key, label, value, opts = {}) {
 function stRender() {
 	const v = stTop();
 	if (!v) return;
-	const path = st.map((x) => x.view == 'menu' ? t('settings') : x.cat ? lbl(x.cat.label) : x.item ? lbl(x.item.label) : x.dev ? (x.dev.name ?? x.dev.ip ?? x.dev.mac) : '').join(' › ');
+	const path = st.map((x) => x.view == 'menu' ? t('settings') : x.view == 'appcats' ? t('app_settings') : x.cat ? lbl(x.cat.label) : x.item ? lbl(x.item.label) : x.dev ? (x.dev.name ?? x.dev.ip ?? x.dev.mac) : '').join(' › ');
 	setText('st-path', path);
 	let html = '';
 	if (v.view == 'menu') {
+		// the core categories, then one entry that holds the plugins' settings
 		html = stCats == null ? `<div class="sub">${esc(t('loading'))}</div>` :
-			stCats.map((c, i) => stRow('cat:' + i, lbl(c.label), '', { chev: true })).join('');
+			stCats.map((c, i) => c.plugin ? '' : stRow('cat:' + i, lbl(c.label), '', { chev: true })).join('') +
+			(stCats.some((c) => c.plugin) ? stRow('appcats:', t('app_settings'), '', { chev: true }) : '');
+	} else if (v.view == 'appcats') {
+		html = stCats.map((c, i) => c.plugin ? stRow('cat:' + i, lbl(c.label), '', { chev: true }) : '').join('');
 	} else if (v.view == 'cat') {
 		html = v.items == null ? `<div class="sub">${esc(t('loading'))}</div>` :
 			v.items.map((it) => stRow('item:' + it.id, lbl(it.label), stValue(it),
@@ -891,6 +895,11 @@ function stScreenApplied(id, value) {
 async function stClick(key, el) {
 	const v = stTop();
 	const [k, arg] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
+	if (k == 'appcats') {
+		st.push({ view: 'appcats' });
+		stRender();
+		return;
+	}
 	if (k == 'cat') {
 		const c = stCats[+arg];
 		if (c.view == 'devices') {
