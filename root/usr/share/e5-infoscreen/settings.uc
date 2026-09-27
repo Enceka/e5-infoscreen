@@ -83,7 +83,8 @@ function same_set(a, b) {
 }
 
 function apn_options() {
-	let seen = {}, out = [];
+	// e5-linux's e5-apn-auto: the APN from the SIM's operator
+	let seen = {}, out = [ { value: 'auto', label: L('自动（按 SIM 卡）', 'Automatic (from the SIM)') } ];
 	let add = (apn) => {
 		if (apn && apn != 'ims' && !seen[apn]) {
 			seen[apn] = true;
@@ -142,7 +143,8 @@ const network = {
 			push(opts, { value: cur_cell, label: L(`已锁定 ${uc(p[0])} PCI ${p[2]} · ${p[1]}`, `locked ${uc(p[0])} PCI ${p[2]} · ${p[1]}`) });
 		}
 		return [
-			{ id: 'apn', type: 'choice', label: L('APN', 'APN'), value: ctx.uci().get('network', 'wan', 'apn'),
+			{ id: 'apn', type: 'choice', label: L('APN', 'APN'),
+			  value: (ctx.uci().get('network', 'wan', 'apn_auto') == '1') ? 'auto' : ctx.uci().get('network', 'wan', 'apn'),
 			  options: apn_options(), confirm: true,
 			  note: L('切换后会重新连接网络', 'The connection restarts on a change') },
 			{ id: 'net_mode', type: 'choice', label: L('网络模式', 'Network mode'), confirm: true,
@@ -176,7 +178,15 @@ const network = {
 				if (o.value == value) ok = true;
 			if (!ok) return 'unknown APN';
 			let c = ctx.uci();
+			if (value == 'auto') {
+				c.set('network', 'wan', 'apn_auto', '1');
+				c.commit('network');
+				// (sets the APN and reconnects when it differs)
+				ctx.run('(/usr/libexec/e5-apn-auto) >/dev/null 2>&1 &');
+				return null;
+			}
 			c.set('network', 'wan', 'apn', value);
+			c.set('network', 'wan', 'apn_auto', '0');
 			c.commit('network');
 			ctx.run('(ifup wan) >/dev/null 2>&1 &');
 			return null;
