@@ -60,7 +60,7 @@ for version 1 of all three.
 
 ```json
 {
-  "time": 1790479780, "clock": "10:46",
+  "time": 1790479780, "tz_offset": 28800, "clock": "10:46",
   "modem": { "present": true, "state": "connected", "operator": "CHINA BROADNET",
              "registration": "home", "tech": "5gnr", "quality": 67, "sim": true,
              "signal": { "rsrp": -103.0, "rsrq": -22.5, "snr": -10.5 },
@@ -174,6 +174,7 @@ footer below: about 320×424 CSS pixels).  Load the SDK first:
 | `e5.keepAwake(on)` | `true`: the screen does not go dark while the plugin is open (a timer, a test running); set it back to `false` |
 | `e5.exit()` | close the plugin |
 | `e5.t({ zh, en })` | the text in the screen's language |
+| `e5.tzOffset`, `e5.time(ms)` | the device's offset from UTC (s); a time as `HH:MM:SS` in the device's zone.  WebKit has no zoneinfo on OpenWrt, so `Date`'s local time is UTC: use these (or `tz_offset` from `/status`). |
 
 While the screen is dark the SDK swallows keys (the host wakes the screen); the
 power key is the host's.  Touch works as in any page.  Use large text and a dark

@@ -301,11 +301,19 @@ function render(st) {
 
 /* ---------- clock ---------- */
 
+// a time in the device's time zone: the API's offset from UTC, not WebKit's
+// zone (it has no zoneinfo on OpenWrt, so it would be UTC)
+function localParts(ms) {
+	const d = new Date((ms ?? Date.now()) + (last?.tz_offset ?? 0) * 1000);
+	return { y: d.getUTCFullYear(), mo: d.getUTCMonth() + 1, d: d.getUTCDate(),
+	         h: d.getUTCHours(), mi: d.getUTCMinutes(), s: d.getUTCSeconds() };
+}
+
 // the status bar's clock ticks here, every second: the page has the device's
 // time zone (the session passes TZ) and the time is NTP's
 function tickClock() {
-	const d = new Date(), p2 = (n) => String(n).padStart(2, '0');
-	setText('bar-clock', `${p2(d.getHours())}:${p2(d.getMinutes())}` + (last?.screen?.clock_seconds ? `:${p2(d.getSeconds())}` : ''));
+	const d = localParts(), p2 = (n) => String(n).padStart(2, '0');
+	setText('bar-clock', `${p2(d.h)}:${p2(d.mi)}` + (last?.screen?.clock_seconds ? `:${p2(d.s)}` : ''));
 }
 setInterval(() => { if (!blank) tickClock(); }, 1000);
 
@@ -532,8 +540,8 @@ document.addEventListener('mousedown', () => { if (!blank) resetIdle(); }, true)
 function fmtSmsTime(ts) {
 	const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(ts ?? '');
 	if (!m) return '';
-	const now = new Date();
-	const today = now.getFullYear() == +m[1] && now.getMonth() + 1 == +m[2] && now.getDate() == +m[3];
+	const now = localParts();
+	const today = now.y == +m[1] && now.mo == +m[2] && now.d == +m[3];
 	return (today ? '' : `${m[2]}-${m[3]} `) + `${m[4]}:${m[5]}`;
 }
 
@@ -667,11 +675,11 @@ async function loadTraffic() {
 	setText('tf-day-rx', b(u.today.rx)); setText('tf-day-tx', b(u.today.tx));
 	setText('tf-mon-rx', b(u.month.rx)); setText('tf-mon-tx', b(u.month.tx));
 	// counting began inside this month (or today): say so, the total is partial
-	const since = u.since ? new Date(u.since * 1000) : null, nowd = new Date();
+	const since = u.since ? localParts(u.since * 1000) : null, nowd = localParts();
 	const p2 = (n) => String(n).padStart(2, '0');
-	const sinceText = since ? `${t('counting_since')} ${p2(since.getMonth() + 1)}-${p2(since.getDate())} ${p2(since.getHours())}:${p2(since.getMinutes())}` : '';
-	const sameMonth = since && since.getFullYear() == nowd.getFullYear() && since.getMonth() == nowd.getMonth();
-	const sameDay = sameMonth && since.getDate() == nowd.getDate();
+	const sinceText = since ? `${t('counting_since')} ${p2(since.mo)}-${p2(since.d)} ${p2(since.h)}:${p2(since.mi)}` : '';
+	const sameMonth = since && since.y == nowd.y && since.mo == nowd.mo;
+	const sameDay = sameMonth && since.d == nowd.d;
 	setText('tf-mon-since', sameMonth ? sinceText : '');
 	setText('tf-day-since', sameDay ? sinceText : '');
 	const max = Math.max(1, ...u.days.map((d) => d.rx + d.tx));
@@ -770,7 +778,7 @@ async function stOpen() {
 }
 
 async function stLoadCat(v) {
-	const r = await fetch('/api/settings/' + encodeURIComponent(v.cat.id), { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+	const r = await fetch('/api/settings/' + v.cat.id, { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
 	v.items = r?.items ?? [];
 	if (stTop() === v) stRender();
 }
@@ -829,6 +837,7 @@ function stRender() {
 		html = stCats == null ? `<div class="sub">${esc(t('loading'))}</div>` :
 			stCats.map((c, i) => c.plugin ? '' : stRow('cat:' + i, lbl(c.label), '', { chev: true })).join('') +
 			(stCats.some((c) => c.plugin) ? stRow('appcats:', t('app_settings'), '', { chev: true }) : '');
+		// (the API lists a plugin category only when its manifest has settings)
 	} else if (v.view == 'appcats') {
 		html = stCats.map((c, i) => c.plugin ? stRow('cat:' + i, lbl(c.label), '', { chev: true }) : '').join('');
 	} else if (v.view == 'cat') {
@@ -872,7 +881,7 @@ function stRender() {
 }
 
 async function stPost(v, body) {
-	const r = await fetch('/api/settings/' + encodeURIComponent(v.cat.id), {
+	const r = await fetch('/api/settings/' + v.cat.id, {
 		method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
 	}).then((r) => r.json()).catch(() => null);
 	toast(r?.ok ? t('saved') : `${t('failed')}${r?.error ? ': ' + r.error : ''}`);
@@ -1086,7 +1095,7 @@ window.addEventListener('message', (e) => {
 		resetIdle();
 		break;
 	case 'ready':
-		toApp({ e5: 'hello', lang, api_version: 1, blank });
+		toApp({ e5: 'hello', lang, api_version: 1, blank, tz_offset: last?.tz_offset ?? 0 });
 		break;
 	}
 });

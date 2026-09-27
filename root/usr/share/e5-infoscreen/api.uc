@@ -63,10 +63,14 @@ function state_get(name, ttl) {
 	}
 }
 
+// written to a file of its own, then renamed: two requests at once (the
+// page polls while a setting is saved) must not share the temporary file
 function state_put(name, obj) {
 	system(`mkdir -p ${RUN}`);
-	writefile(`${RUN}/${name}.json.tmp`, sprintf('%J', obj));
-	system(`mv -f ${RUN}/${name}.json.tmp ${RUN}/${name}.json`);
+	let c = clock(true);
+	let tmp = `${RUN}/${name}.json.${c[0]}${c[1]}`;
+	writefile(tmp, sprintf('%J', obj));
+	system(`mv -f ${tmp} ${RUN}/${name}.json`);
 }
 
 function now() {
@@ -907,9 +911,12 @@ function sms_config() {
 }
 
 function status() {
-	let lt = localtime();
+	let lt = localtime(), t = time();
 	return {
-		time: time(),
+		time: t,
+		// the device's offset from UTC in seconds: the page formats its times
+		// with it (WebKit has no zoneinfo here and would use UTC)
+		tz_offset: timegm(lt) - t,
 		clock: sprintf('%02d:%02d', lt.hour, lt.min),
 		modem: modem_status(),
 		wan: wan_status(),
@@ -982,6 +989,8 @@ global.handle_request = function(env) {
 		path = replace(env.REQUEST_URI ?? '', /\?.*$/, '');
 		path = replace(path, /^\/api/, '');
 	}
+	// (uhttpd hands the path over still percent-encoded)
+	path = uhttpd.urldecode(path) ?? path;
 	let post = env.REQUEST_METHOD == 'POST';
 
 	try {

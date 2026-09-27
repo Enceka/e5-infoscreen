@@ -30,6 +30,22 @@ const LTE_CHOICES = [ 1, 3, 5, 7, 8, 20, 28, 34, 38, 39, 40, 41 ];
 const LTE_ANDROID = LTE_CHOICES;
 const NR_CHOICES = [ 1, 3, 5, 8, 28, 41, 77, 78, 79 ];
 
+// AT+SPTESTMODE=<card 1>,<card 2>,<primary SIM>: the work mode of each card
+// (the values UFI-TOOLS uses on this CP generation, uficode's
+// UniSocCellularUtils.kt NetworkMode); the read form answers the same three
+// first.  5G without 4G is SA: "5G only" is SA only.
+const NET_MODES = [
+	[ '134', L('5G/4G/3G 自动', '5G/4G/3G auto') ],
+	[ '131', L('5G/4G', '5G/4G') ],
+	[ '128', L('仅 5G (SA)', '5G only (SA)') ],
+	[ '3', L('仅 4G', '4G only') ]
+];
+
+function testmode() {
+	let w = ctx.payload_ints(ctx.at('AT+SPTESTMODE?'));
+	return (length(w) >= 3) ? { card1: w[0], card2: w[1], primary: w[2] } : null;
+}
+
 // AT+SPLBAND=1,<49-64>,<33-48>,<17-32>,<1-16>,<65-80>  (unisoc-cpd lte_band_lock_command)
 function lte_lock_cmd(bands) {
 	// (ucode object keys are strings)
@@ -118,6 +134,7 @@ const network = {
 		let modem = ctx.modem_present();
 		let cells = modem ? ctx.cells() : [];
 		let cur_cell = modem ? cell_lock_value() : 'none';
+		let tm = modem ? testmode() : null;
 		let opts = cell_options(cells);
 		// a lock on a cell that is not in view any more is still shown
 		if (cur_cell != 'none' && !length(filter(opts, (o) => o.value == cur_cell))) {
@@ -128,9 +145,14 @@ const network = {
 			{ id: 'apn', type: 'choice', label: L('APN', 'APN'), value: ctx.uci().get('network', 'wan', 'apn'),
 			  options: apn_options(), confirm: true,
 			  note: L('切换后会重新连接网络', 'The connection restarts on a change') },
-			{ id: 'sa', type: 'toggle', label: L('5G SA', '5G SA'), confirm: true,
-			  value: modem ? ctx.payload_ints(ctx.at('AT+SP5GRAN?'))[0] == 1 : null,
-			  note: L('关闭后仅 NSA', 'Off: NSA only') },
+			{ id: 'net_mode', type: 'choice', label: L('网络模式', 'Network mode'), confirm: true,
+			  value: (modem && tm) ? `${tm.card1}` : null,
+			  options: map(NET_MODES, (m) => ({ value: m[0], label: m[1] })),
+			  note: L('切换时会重新注册网络', 'The modem registers again on a change') },
+			{ id: 'nr_mode', type: 'choice', label: L('5G 组网', '5G access'), confirm: true,
+			  value: modem ? ((ctx.payload_ints(ctx.at('AT+SP5GRAN?'))[0] == 1) ? 'sa' : 'nsa') : null,
+			  options: [ { value: 'sa', label: L('SA + NSA', 'SA + NSA') },
+			             { value: 'nsa', label: L('仅 NSA', 'NSA only') } ] },
 			{ id: 'lte_bands', type: 'multi', label: L('LTE 频段锁定', 'LTE band lock'), confirm: true,
 			  value: modem ? ctx.lte_bands(ctx.at('AT+SPLBAND=0')) : [],
 			  options: map(LTE_CHOICES, (b) => ({ value: b, label: `B${b}` })),
@@ -159,8 +181,25 @@ const network = {
 			ctx.run('(ifup wan) >/dev/null 2>&1 &');
 			return null;
 		}
-		if (id == 'sa') {
-			let v = value ? 1 : 0;
+		if (id == 'net_mode') {
+			let ok = false;
+			for (let m in NET_MODES) if (m[0] == `${value}`) ok = true;
+			let tm = testmode();
+			if (!ok || !tm) return ok ? 'cannot read the current mode' : 'unknown mode';
+			// card 2's mode and the primary SIM stay as the modem has them
+			ctx.at(`AT+SPTESTMODE=${int(value)},${tm.card2},${tm.primary}`);
+			ctx.forget('modem');
+			// the CP applies it a moment after the OK: read back for up to 3 s
+			for (let i = 0; i < 6; i++) {
+				let now = testmode();
+				if (now && now.card1 == int(value)) return null;
+				ctx.run('sleep 0.5');
+			}
+			return 'the modem did not take it';
+		}
+		if (id == 'nr_mode') {
+			if (value != 'sa' && value != 'nsa') return 'unknown';
+			let v = (value == 'sa') ? 1 : 0;
 			ctx.at(`AT+SP5GRAN=${v}`);
 			return (ctx.payload_ints(ctx.at('AT+SP5GRAN?'))[0] == v) ? null : 'the modem did not take it';
 		}

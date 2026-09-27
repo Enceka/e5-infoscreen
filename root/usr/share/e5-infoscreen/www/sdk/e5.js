@@ -72,6 +72,7 @@
 		if (msg.e5 == 'blank') blank = !!msg.on;
 		if (msg.e5 == 'hello') {
 			blank = !!msg.blank;
+			e5.tzOffset = +msg.tz_offset || 0;
 			if (msg.lang && msg.lang != e5.lang) {
 				e5.lang = msg.lang;
 				if (langFn) langFn(e5.lang);
@@ -106,6 +107,14 @@
 		toast: (text) => send({ e5: 'toast', text: String(text) }),
 		exit: () => send({ e5: 'exit' }),
 		keepAwake: (on) => send({ e5: 'keep-awake', on: !!on }),
+		/* the device's offset from UTC, seconds (WebKit's own zone is UTC here) */
+		tzOffset: 0,
+		/* a time (ms since the epoch, default now) as HH:MM:SS in the device's zone */
+		time: (ms) => {
+			const d = new Date((ms ?? Date.now()) + e5.tzOffset * 1000);
+			const p2 = (n) => String(n).padStart(2, '0');
+			return `${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}:${p2(d.getUTCSeconds())}`;
+		},
 		/* { zh: '...', en: '...' } -> the text in the screen's language */
 		t: (d) => (d && typeof d == 'object') ? (d[e5.lang] ?? d.zh ?? d.en ?? '') : String(d ?? '')
 	};

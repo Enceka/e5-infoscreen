@@ -42,7 +42,7 @@ function draw(res, t) {
 			`<div class="row sub"><span>${esc(r.host)}</span><span>${e5.t({ zh: '丢包', en: 'loss' })} ${r.loss}%` +
 			`${r.min != null ? ` · ${r.min.toFixed(0)}–${r.max.toFixed(0)} ms` : ''}</span></div></div>`;
 	}).join('') : `<div class="card sub">${e5.t({ zh: '按确认开始测试', en: 'Press confirm to start' })}</div>`;
-	$('when').textContent = t ? new Date(t * 1000).toLocaleTimeString() : '';
+	$('when').textContent = t ? e5.time(t * 1000) : '';
 }
 
 async function run() {
