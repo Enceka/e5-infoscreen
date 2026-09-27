@@ -84,6 +84,13 @@ let advTimer = null;
 let showIds = false;
 
 const $ = (id) => document.getElementById(id);
+// handlers by element id: an element this page does not have (an index.html
+// older than this script) is logged, not a TypeError that stops the script
+function on(id, ev, fn) {
+	const el = $(id);
+	if (el) el.addEventListener(ev, fn);
+	else console.log('no element #' + id);
+}
 const pages = Array.from(document.querySelectorAll('.page'));
 const t = (k) => (I18N[lang] && I18N[lang][k]) ?? I18N.zh[k] ?? k;
 
@@ -218,7 +225,8 @@ function renderSignal(st) {
 	setText('sg-tech', m.tech ? techName(m.tech) : '--');
 	setText('sg-band', c?.band ?? '');
 	setText('sg-op', [m.operator, m.registration == 'roaming' ? t('roaming') : null].filter(Boolean).join(' · ') || '--');
-	for (const [kind, v, unit] of [['rsrp', m.signal.rsrp, ' dBm'], ['rsrq', m.signal.rsrq, ' dB'], ['sinr', m.signal.snr, ' dB']]) {
+	const sig = m.signal ?? {};
+	for (const [kind, v, unit] of [['rsrp', sig.rsrp, ' dBm'], ['rsrq', sig.rsrq, ' dB'], ['sinr', sig.snr, ' dB']]) {
 		const g = grade(kind, v);
 		setText('sg-' + kind, v == null ? '--' : `${v.toFixed(1)}${unit} · ${t(g.word)}`);
 		const bar = $('sg-' + kind + '-bar');
@@ -572,14 +580,14 @@ async function smsCheck(st) {
 	markSmsRead();
 }
 
-$('sms-list').addEventListener('click', (e) => {
+on('sms-list', 'click', (e) => {
 	const b = e.target.closest('[data-sms]');
 	if (b) openSms(+b.dataset.sms);
 });
 
-$('sv-back').addEventListener('click', () => closeSms());
+on('sv-back', 'click', () => closeSms());
 
-$('sv-delete').addEventListener('click', async () => {
+on('sv-delete', 'click', async () => {
 	const b = $('sv-delete');
 	if (!smsArmed) {
 		b.classList.add('armed');
@@ -648,7 +656,7 @@ function hideIds() {
 	for (const id of ['id-imei', 'id-iccid', 'id-imsi', 'id-num']) setText(id, '--');
 }
 
-$('ad-showids').addEventListener('click', async () => {
+on('ad-showids', 'click', async () => {
 	if (showIds) return hideIds();
 	const r = await fetch('/api/identity', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
 	if (!r) return;
@@ -663,7 +671,7 @@ $('ad-showids').addEventListener('click', async () => {
 
 /* ---------- actions ---------- */
 
-$('hs-toggle').addEventListener('click', async () => {
+on('hs-toggle', 'click', async () => {
 	if (!last) return;
 	const on = !(wifiPending ?? last.wifi.enabled);
 	wifiPending = on;
@@ -673,7 +681,7 @@ $('hs-toggle').addEventListener('click', async () => {
 	setTimeout(poll, 1500);
 });
 
-$('hs-showkey').addEventListener('click', async () => {
+on('hs-showkey', 'click', async () => {
 	showKey = !showKey;
 	$('hs-showkey').textContent = showKey ? t('hide_key') : t('show_key');
 	if (!showKey) {
@@ -689,10 +697,10 @@ function stepBrightness(d) {
 	post('backlight', { level: brightness, save: true });
 	if (last) renderDevice(last);
 }
-$('dv-dim').addEventListener('click', () => stepBrightness(-25));
-$('dv-bright').addEventListener('click', () => stepBrightness(25));
+on('dv-dim', 'click', () => stepBrightness(-25));
+on('dv-bright', 'click', () => stepBrightness(25));
 
-$('dv-reconnect').addEventListener('click', async () => {
+on('dv-reconnect', 'click', async () => {
 	toast(t('reconnecting'));
 	await post('wan-reconnect');
 	setTimeout(poll, 3000);
@@ -700,6 +708,14 @@ $('dv-reconnect').addEventListener('click', async () => {
 
 /* ---------- start ---------- */
 
-applyLang();
-showPage(0);
-poll();
+// the page and this script must be the same version: if an element the
+// script needs is missing, load the page once more past the cache
+if (!$('ad-showids') && !sessionStorage.getItem('e5-reloaded')) {
+	sessionStorage.setItem('e5-reloaded', '1');
+	location.reload();
+} else {
+	sessionStorage.removeItem('e5-reloaded');
+	applyLang();
+	showPage(0);
+	poll();
+}
