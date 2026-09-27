@@ -244,6 +244,23 @@ function renderOverview(st) {
 	const flow = ma == null ? 0 : ma >= 20 ? 1 : ma <= -20 ? -1 : 0;
 	setHTML('ov-power', (ma == null ? '--' : `<span class="${flow > 0 ? 'ok' : flow < 0 ? 'warn' : ''}">${flow > 0 ? '+' : ''}${ma} mA</span>`) +
 		(b.voltage_mv == null ? '' : ` · ${(b.voltage_mv / 1000).toFixed(2)} V`));
+
+	const sy = st.system;
+	usage('ov-mem', sy.mem_total == null ? null : sy.mem_total - sy.mem_available, sy.mem_total);
+	usage('ov-disk', sy.disk_used, sy.disk_total);
+}
+
+// "used / total · n%" and a bar: green, yellow from 75 %, red from 90 %
+function usage(id, used, total) {
+	const bar = $(id + '-bar');
+	if (used == null || !total) { setText(id, '--'); if (bar) bar.style.width = '0'; return; }
+	const pct = Math.min(100, Math.round(used / total * 100));
+	const [u, uu] = fmtBytes(used), [tt, tu] = fmtBytes(total);
+	setText(id, `${u} ${uu} / ${tt} ${tu} · ${pct}%`);
+	if (bar) {
+		bar.style.width = pct + '%';
+		bar.style.background = pct >= 90 ? 'var(--poor)' : pct >= 75 ? 'var(--fair)' : 'var(--good)';
+	}
 }
 
 function renderSignal(st) {

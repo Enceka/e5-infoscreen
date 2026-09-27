@@ -116,6 +116,8 @@ html, body {
 .meter .mh span:first-child { color: var(--dim); }
 .track { height: 7px; background: var(--line); border-radius: 4px; overflow: hidden; }
 .track div { height: 100%; width: 0; border-radius: 4px; background: var(--dim); transition: width 0.4s; }
+.usage .track { height: 5px; }
+.usage .track + .mh { margin-top: 7px; }
 .grid { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; }
 
 /* traffic */

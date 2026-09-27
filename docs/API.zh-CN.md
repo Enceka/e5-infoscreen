@@ -52,7 +52,7 @@
 
 `GET /status` 的内容与英文版相同（见 [`API.md`](API.md) 第 2 节的示例）：`modem`、`wan`、
 `traffic`（`rx_rate`/`tx_rate` 为距上次读取的每秒字节数，第一次为 `null`）、`wifi`、
-`clients`、`battery`、`system`、`screen`、`sms`。模组部分缓存 10 秒。
+`clients`、`battery`、`system`（含 `disk_total`/`disk_used`：根文件系统，`df /`，缓存 60 秒）、`screen`、`sms`。模组部分缓存 10 秒。
 
 ## 3. 设置项
 

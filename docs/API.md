@@ -76,7 +76,8 @@ for version 1 of all three.
   "wifi": { "ssid": "E5-Linux", "enabled": true, "up": true, "channel": "149", "band": "5g", "secured": true },
   "clients": [ { "name": "phone", "ip": "192.168.9.12", "mac": "..", "via": "wifi", "signal": -52 } ],
   "battery": { "capacity": 99, "status": "Charging", "current_ma": 194, "voltage_mv": 4350, "limit": 80, "paused": false, "online": true },
-  "system": { "uptime": 5321, "load": 0.42, "mem_total": 1538670592, "mem_available": 794218496, "lan_ip": "192.168.9.1" },
+  "system": { "uptime": 5321, "load": 0.42, "mem_total": 1538670592, "mem_available": 794218496,
+              "disk_total": 1020702720, "disk_used": 345812992, "lan_ip": "192.168.9.1" },
   "screen": { "idle": 60, "brightness": 120, "lang": "zh" },
   "sms": { "unread": [ 3 ], "screen": true }
 }
@@ -85,7 +86,8 @@ for version 1 of all three.
 Rates are bytes per second over the time since the previous poll (`null` on
 the first).  `battery.limit` is the charge limit when one is on (e5-linux's
 `e5-charge`), `paused` whether it has stopped charging -- the gauge's own
-`status` then reads `Full` or `Not charging`.  The modem part is cached for 10 s.
+`status` then reads `Full` or `Not charging`.  `system.disk_*` is the root
+filesystem (`df /`, cached 60 s).  The modem part is cached for 10 s.
 
 ## 3. Settings items
 

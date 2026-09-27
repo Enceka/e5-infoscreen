@@ -406,6 +406,20 @@ function battery() {
 	};
 }
 
+// the root filesystem's use (df, cached: it changes slowly and /status is
+// polled every 2 s) -- OpenWrt's own image standalone, the Debian image for
+// the directory form
+function root_disk() {
+	let d = state_get('root_disk', 60);
+	if (d)
+		return d;
+	let lines = split(trim(sh('df -k / 2>/dev/null') ?? ''), '\n');
+	let f = split(replace(lines[length(lines) - 1] ?? '', /\s+/g, ' '), ' ');
+	d = (length(f) >= 4) ? { total: +f[1] * 1024, used: +f[2] * 1024 } : { total: null, used: null };
+	state_put('root_disk', d);
+	return d;
+}
+
 function system_status() {
 	let mem = {};
 	for (let line in split(readfile('/proc/meminfo') ?? '', '\n')) {
@@ -420,6 +434,8 @@ function system_status() {
 		load: +load[0],
 		mem_total: mem.MemTotal,
 		mem_available: mem.MemAvailable,
+		disk_total: root_disk().total,
+		disk_used: root_disk().used,
 		lan_ip: '192.168.9.1'
 	};
 }
