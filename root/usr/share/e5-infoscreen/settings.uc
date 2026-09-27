@@ -349,6 +349,8 @@ const screen = uci_category('screen', L('屏幕', 'Screen'), [
 	  options: [ { value: '15', label: L('15 秒', '15 s') }, { value: '30', label: L('30 秒', '30 s') },
 	             { value: '60', label: L('1 分钟', '1 min') }, { value: '120', label: L('2 分钟', '2 min') },
 	             { value: '300', label: L('5 分钟', '5 min') }, { value: '0', label: L('从不', 'Never') } ] },
+	{ id: 'touch', type: 'toggle', uci: 'e5-infoscreen.main.touch', default: '1', label: L('触摸', 'Touch'),
+	  note: L('关闭后只用按键操作', 'Off: the keys only') },
 	{ id: 'lang', type: 'choice', uci: 'e5-infoscreen.main.lang', default: 'zh', label: L('语言', 'Language'),
 	  options: [ { value: 'zh', label: L('中文', '中文') }, { value: 'en', label: L('English', 'English') } ] }
 ]);

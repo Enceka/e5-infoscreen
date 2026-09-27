@@ -339,6 +339,7 @@ async function poll() {
 			const st = await r.json();
 			const first = last == null;
 			last = st;
+			applyTouch();
 			if (first) {
 				lang = st.screen.lang in I18N ? st.screen.lang : 'zh';
 				brightness = st.screen.brightness || 120;
@@ -517,6 +518,21 @@ document.addEventListener('keydown', (e) => {
 		if (kind && kind.startsWith('page')) showPage(+kind.slice(4) - 1);
 	}
 }, true);
+
+// touch off: every touch, tap and swipe is dropped here, before anything
+// else sees it, and it does not wake the screen either
+function touchOff() { return last?.screen?.touch === false; }
+for (const ev of ['touchstart', 'touchmove', 'touchend', 'mousedown', 'mouseup', 'click'])
+	document.addEventListener(ev, (e) => {
+		if (touchOff() && e.isTrusted) {
+			e.preventDefault();
+			e.stopImmediatePropagation();
+		}
+	}, { capture: true, passive: false });
+
+function applyTouch() {
+	document.body.classList.toggle('notouch', touchOff());
+}
 
 // touch: the first touch on a dark screen wakes it and does nothing else;
 // a horizontal swipe changes the page
@@ -919,6 +935,9 @@ function stScreenApplied(id, value) {
 	} else if (id == 'idle') {
 		last.screen.idle = +value;
 		resetIdle();
+	} else if (id == 'touch') {
+		last.screen.touch = !!value;
+		applyTouch();
 	} else if (id == 'lang') {
 		lang = value in I18N ? value : 'zh';
 		last.screen.lang = lang;

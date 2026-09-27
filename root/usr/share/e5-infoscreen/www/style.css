@@ -227,3 +227,6 @@ body.blank #blank { display: block; }
 	font-size: 13px; opacity: 0; transition: opacity 0.2s; z-index: 5; pointer-events: none;
 }
 #toast.show { opacity: 1; }
+
+/* touch off (高级 -> 屏幕 -> 触摸): nothing takes a touch, a plugin's frame neither */
+body.notouch, body.notouch * { pointer-events: none !important; }

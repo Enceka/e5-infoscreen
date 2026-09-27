@@ -433,6 +433,7 @@ function screen_config() {
 		idle: +(c.get('e5-infoscreen', 'main', 'idle') ?? 60),
 		brightness: +(c.get('e5-infoscreen', 'main', 'brightness') ?? 120),
 		clock_seconds: c.get('e5-infoscreen', 'main', 'clock_seconds') == '1',
+		touch: c.get('e5-infoscreen', 'main', 'touch') != '0',
 		lang: c.get('e5-infoscreen', 'main', 'lang') ?? 'zh'
 	};
 }
