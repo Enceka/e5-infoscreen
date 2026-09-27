@@ -203,6 +203,7 @@ html, body {
 	color: #1a1f27; font-weight: bold; font-size: 15px; padding: 10px;
 }
 .list .lh { color: var(--dim); margin-bottom: 4px; }
+#st-view .lh { color: var(--dim); font-size: 12px; margin: 10px 4px 5px; }
 .client { display: flex; justify-content: space-between; gap: 6px; padding: 4px 0; border-top: 1px solid var(--line); font-size: 13px; }
 .client .via { color: var(--dim); font-size: 11px; }
 

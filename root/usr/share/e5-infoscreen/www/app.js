@@ -28,7 +28,8 @@ const I18N = {
 		idle_reg: '未注册', denied: '被拒绝',
 		since_boot: '本次开机', network: '网络', clients: '在线设备', battery: '电池',
 		bandwidth: '带宽', neighbours: '邻区', uptime: '开机时长', wan_uptime: '联网时长',
-		load: '负载', memory: '内存', subscribed: '签约速率', volume: '音量', muted: '静音', brightness: '亮度', reconnect: '重新连接网络',
+		load: '负载', memory: '内存', subscribed: '签约速率', volume: '音量', muted: '静音',
+		bluetooth: '蓝牙', bt_none: '没有蓝牙适配器', bt_scan: '搜索设备', bt_scanning: '正在搜索…', bt_name: '本机名称', bt_mine: '我的设备', bt_found: '附近的设备', bt_none_found: '没有找到设备，点“搜索设备”', bt_note: '耳机或音箱请先进入配对模式；连接后声音从蓝牙播放', bt_state: '状态', bt_connect: '连接', bt_pair: '配对并连接', bt_disconnect: '断开', bt_remove: '忘记此设备', bt_connected: '已连接', bt_paired: '已配对', bt_pairing: '配对中…', bt_connecting: '连接中…', bt_failed: '连接失败', bt_notfound: '没有找到设备：请让它进入配对模式后再试', bt_forgot: '设备已忘记配对：请让它进入配对模式后再连接', bt_noanswer: '设备没有响应：请打开耳机盒、戴上耳机，并确认它没有连着手机', brightness: '亮度', reconnect: '重新连接网络',
 		show_key: '显示密码', hide_key: '隐藏密码', hs_off: '热点已关闭', hs_down: '热点未启动', on: '开', off: '关',
 		connected: '已连接', connecting: '连接中', disconnected: '未连接',
 		no_modem: '无模组', no_sim: '无 SIM 卡', searching: '搜索网络',
@@ -60,7 +61,8 @@ const I18N = {
 		idle_reg: 'Not registered', denied: 'Denied',
 		since_boot: 'Since boot', network: 'Network', clients: 'Clients', battery: 'Battery',
 		bandwidth: 'Bandwidth', neighbours: 'Neighbours', uptime: 'Uptime', wan_uptime: 'Online',
-		load: 'Load', memory: 'Memory', subscribed: 'Subscribed rate', volume: 'Volume', muted: 'Muted', brightness: 'Brightness', reconnect: 'Reconnect',
+		load: 'Load', memory: 'Memory', subscribed: 'Subscribed rate', volume: 'Volume', muted: 'Muted',
+		bluetooth: 'Bluetooth', bt_none: 'No Bluetooth adapter', bt_scan: 'Search', bt_scanning: 'Searching…', bt_name: 'Name', bt_mine: 'My devices', bt_found: 'Nearby', bt_none_found: 'Nothing found; press Search', bt_note: 'Put headphones or a speaker in pairing mode first; once connected the sound plays there', bt_state: 'State', bt_connect: 'Connect', bt_pair: 'Pair and connect', bt_disconnect: 'Disconnect', bt_remove: 'Forget', bt_connected: 'Connected', bt_paired: 'Paired', bt_pairing: 'Pairing…', bt_connecting: 'Connecting…', bt_failed: 'Failed', bt_notfound: 'Not found: put it in pairing mode and try again', bt_forgot: 'The device forgot the pairing: put it in pairing mode and connect again', bt_noanswer: 'No answer: take the earbuds out of the case and make sure no phone is connected to them', brightness: 'Brightness', reconnect: 'Reconnect',
 		show_key: 'Show key', hide_key: 'Hide key', hs_off: 'Hotspot off', hs_down: 'Hotspot not up', on: 'On', off: 'Off',
 		connected: 'Connected', connecting: 'Connecting', disconnected: 'Offline',
 		no_modem: 'No modem', no_sim: 'No SIM', searching: 'Searching',
@@ -927,7 +929,7 @@ function stRow(key, label, value, opts = {}) {
 function stRender() {
 	const v = stTop();
 	if (!v) return;
-	const path = st.map((x) => x.view == 'menu' ? t('settings') : x.view == 'appcats' ? t('app_settings') : x.view == 'atres' ? x.cmd : x.cat ? lbl(x.cat.label) : x.item ? lbl(x.item.label) : x.dev ? (x.dev.name ?? x.dev.ip ?? x.dev.mac) : '').join(' › ');
+	const path = st.map((x) => x.view == 'menu' ? t('settings') : x.view == 'appcats' ? t('app_settings') : x.view == 'atres' ? x.cmd : x.cat ? lbl(x.cat.label) : x.item ? lbl(x.item.label) : x.dev ? (x.dev.name ?? x.dev.ip ?? x.dev.mac) : x.view == 'btdev' ? (x.name ?? x.mac) : '').join(' › ');
 	setText('st-path', path);
 	let html = '';
 	if (v.view == 'menu') {
@@ -971,6 +973,28 @@ function stRender() {
 			v.list.map((d, i) => stRow('dev:' + i, d.name ?? d.ip ?? d.mac,
 				d.blocked ? t('blocked') : d.online ? `${t('online')} · ${t(d.via ?? 'wifi')}` : t('offline'),
 				{ on: d.online && !d.blocked, chev: true })).join('') : `<div class="sub">${esc(t('no_devices'))}</div>`;
+	} else if (v.view == 'bluetooth') {
+		const b = v.bt;
+		if (!b) html = `<div class="sub">${esc(t('loading'))}</div>`;
+		else if (!b.adapter) html = `<div class="sub">${esc(t('bt_none'))}</div>`;
+		else {
+			html = stRow('bt:power', t('bluetooth'), b.powered ? t('on') : t('off'), { on: b.powered }) +
+				(b.powered ? stRow('bt:scan', b.discovering ? t('bt_scanning') : t('bt_scan'), '') : '') +
+				(b.name ? stRow('info:btname', t('bt_name'), b.name, { info: true }) : '');
+			const mine = b.devices.filter((d) => d.paired || d.connected), found = b.devices.filter((d) => !d.paired && !d.connected);
+			if (mine.length) html += `<div class="lh">${esc(t('bt_mine'))}</div>` + mine.map((d) => stRow('btd:' + d.mac, d.name, btWord(d), { on: d.connected, chev: true })).join('');
+			if (b.powered) html += `<div class="lh">${esc(t('bt_found'))}</div>` + (found.length ?
+				found.map((d) => stRow('btd:' + d.mac, d.name, btWord(d), { chev: true })).join('') :
+				`<div class="sub">${esc(b.discovering ? t('bt_scanning') : t('bt_none_found'))}</div>`);
+			html += `<div class="stnote">${esc(t('bt_note'))}</div>`;
+		}
+	} else if (v.view == 'btdev') {
+		const d = v.parent.bt?.devices.find((x) => x.mac == v.mac) ?? { mac: v.mac, name: v.mac };
+		html = stRow('info:btmac', t('mac'), d.mac, { info: true }) +
+			stRow('info:btst', t('bt_state'), btWord(d), { info: true }) +
+			(d.connected ? stRow('bta:disconnect', t('bt_disconnect'), '') : stRow('bta:connect', d.paired ? t('bt_connect') : t('bt_pair'), '')) +
+			(d.paired ? stRow('bta:remove', t('bt_remove'), '') : '') +
+			(d.state?.startsWith('failed') ? `<div class="stnote">${esc(btReason(d.state))}</div>` : '');
 	} else if (v.view == 'device') {
 		const d = v.dev;
 		html = stRow('info:mac', t('mac'), d.mac, { info: true }) +
@@ -1057,6 +1081,12 @@ async function stClick(key, el) {
 			if (stTop() === nv) stRender();
 			return;
 		}
+		if (c.view == 'bluetooth') {
+			const nv = { view: 'bluetooth', cat: c, bt: null };
+			st.push(nv); stRender();
+			btPoll(nv);
+			return;
+		}
 		if (c.view == 'devices') {
 			const nv = { view: 'devices', cat: c, list: null };
 			st.push(nv); stRender();
@@ -1118,6 +1148,27 @@ async function stClick(key, el) {
 		}
 		return;
 	}
+	if (k == 'bt') {
+		const b = v.bt;
+		if (!b) return;
+		await btPost(v, arg == 'power' ? { action: 'power', on: !b.powered } : { action: 'scan' });
+		if (arg == 'scan') toast(t('bt_scanning'));
+		return;
+	}
+	if (k == 'btd') {
+		const d = v.bt.devices.find((x) => x.mac == arg);
+		st.push({ view: 'btdev', cat: v.cat, mac: arg, name: d?.name, parent: v });
+		stRender();
+		return;
+	}
+	if (k == 'bta') {
+		if ((arg == 'remove' || arg == 'disconnect') && !stConfirm(key, el)) return;
+		const r = await btPost(v.parent, { action: arg, mac: v.mac });
+		if (r?.ok && arg == 'remove') { st.pop(); }
+		toast(r?.ok ? (arg == 'connect' ? t('bt_connecting') : t('saved')) : `${t('failed')}${r?.error ? ': ' + r.error : ''}`);
+		stRender();
+		return;
+	}
 	if (k == 'dev') {
 		st.push({ view: 'device', cat: v.cat, dev: v.list[+arg], parent: v });
 		stRender();
@@ -1136,6 +1187,41 @@ async function stClick(key, el) {
 		}
 		stRender();
 	}
+}
+
+// Bluetooth: the view refreshes itself while it (or a device of it) is open
+function btWord(d) {
+	if (d.state && d.state.startsWith('failed')) return t('bt_failed');
+	if (d.state == 'pairing') return t('bt_pairing');
+	if (d.state == 'connecting') return t('bt_connecting');
+	if (d.connected) return t('bt_connected');
+	return d.paired ? t('bt_paired') : '';
+}
+
+// e5-bt-connect's "failed: <reason>"
+function btReason(s) {
+	const r = s.replace(/^failed:\s*/, '');
+	return r == 'notfound' ? t('bt_notfound') : r == 'forgot' ? t('bt_forgot') : r == 'noanswer' ? t('bt_noanswer') : r ? `${t('bt_failed')}: ${r}` : t('bt_failed');
+}
+
+async function btPoll(v) {
+	while (st.includes(v)) {
+		const r = await fetch('/api/bluetooth', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+		if (!st.includes(v)) break;
+		if (r) v.bt = r;
+		const top = stTop();
+		if (top === v || (top?.view == 'btdev' && top.parent === v)) stRender();
+		await new Promise((res) => setTimeout(res, 2000));
+	}
+}
+
+async function btPost(v, body) {
+	const r = await fetch('/api/bluetooth', {
+		method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+	}).then((r) => r.json()).catch(() => null);
+	if (r && r.adapter != null) v.bt = r;
+	stRender();
+	return r;
 }
 
 // keys on the settings page; true = taken

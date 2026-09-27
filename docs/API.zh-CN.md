@@ -39,7 +39,9 @@
 | `POST /backlight` | `{ level: 0-255, save: bool }`；`save` 表示把它作为亮屏时恢复的亮度 |
 | `POST /wan-reconnect` | 重新建立移动网络连接 |
 | `GET /advanced` | 设备、基带、锁定、SIM 的详细信息（“高级信息”页） |
-| `GET /volume` | `{ available, level, max, card }`：扬声器音量（e5-linux 的 `e5-volume`），0 为静音，最大 `max`（15）；没有该程序时 `available: false` |
+| `GET /bluetooth` | `{ available, adapter, powered, discovering, name, devices: [ { mac, name, paired, connected, state, icon } ] }`：bluetoothd 的状态；没有名字的设备（BLE 信标）不列出；`state` 是 e5-linux 的 `e5-bt-connect` 进度：`pairing`、`connecting`、`failed: <原因>`（`notfound`、`forgot`、`noanswer` 或 bluetoothd 的错误） |
+| `POST /bluetooth` | `{ action: "power", on }`、`{ action: "scan" }`（20 秒）、`{ action: "connect"\|"disconnect"\|"remove", mac }`，返回 `{ ok, error }` 加上 `GET` 的内容；`connect` 在后台进行（轮询 `GET`） |
+| `GET /volume` | `{ available, level, max, card, output }`：音量（`output` 为 `speaker` 或 `bluetooth`，即声音从哪里出）；扬声器音量（e5-linux 的 `e5-volume`），0 为静音，最大 `max`（15）；没有该程序时 `available: false` |
 | `POST /volume` | `{ step: 1\|-1 }` 或 `{ level }`，返回同 `GET` |
 | `GET /identity` | `{ imei, iccid, imsi, numbers[] }` |
 | `POST /at` | `{ cmd, timeout }`，返回 `{ ok, reply }` 或 `{ ok: false, error }`；对可能让 CP 的 AT 服务（`ATZ`、`AT&F`、`+CPMS=`）或 SIM 卡（`+CFUN=0`、`+SFUN=3`/`5`）直到重启都不可用的指令，额外返回 `warning: true`（e5-linux 的 `e5-at` 同样只是提醒，不再拒绝任何指令）：通过 ModemManager（AT 通道唯一的所有者）发一条 AT 指令，`timeout` 为 1-60 秒（默认 10）。这是原始的指令通道，回复里可能含有识别码。 |

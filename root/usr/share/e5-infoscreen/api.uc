@@ -1110,6 +1110,81 @@ function set_backlight(level, save) {
 	return writefile(p + '/brightness', `${level}\n`) != null;
 }
 
+/* ---------- Bluetooth (bluetoothd; e5-linux's e5-bt and e5-bt-connect) ---------- */
+
+const BT_STATE = '/tmp/run/e5-bt';
+
+function bt_mac_ok(m) {
+	return match(m ?? '', /^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/) != null;
+}
+
+// "Device <MAC> <name>" lines -> { MAC: name }
+function bt_list(filter) {
+	let out = {};
+	for (let line in split(sh(`bluetoothctl devices ${filter ?? ''} 2>/dev/null`) ?? '', '\n')) {
+		let m = match(line, /^Device ([0-9A-F:]{17}) ?(.*)$/);
+		if (m) out[m[1]] = m[2];
+	}
+	return out;
+}
+
+function bluetooth_status() {
+	if (system('command -v bluetoothctl >/dev/null 2>&1') != 0)
+		return { available: false };
+	let show = sh('bluetoothctl show 2>/dev/null') ?? '';
+	if (!match(show, /Controller /))
+		return { available: true, adapter: false, devices: [] };
+	let all = bt_list(), paired = bt_list('Paired'), conn = bt_list('Connected');
+	let devs = [];
+	for (let mac, name in all) {
+		// the unnamed ones (their name is the address: most are BLE beacons)
+		let unnamed = (name == '' || name == replace(mac, /:/g, '-'));
+		if (unnamed && !paired[mac]) continue;
+		let d = { mac, name: unnamed ? mac : name, paired: !!paired[mac], connected: !!conn[mac] };
+		let st = trim(readfile(`${BT_STATE}/${replace(mac, /:/g, '_')}`) ?? '');
+		if (st != '' && !(d.connected && st == 'connected')) d.state = st;
+		if (d.paired || d.connected) {
+			let info = sh(`bluetoothctl info ${mac} 2>/dev/null`) ?? '';
+			d.icon = match(info, /Icon: ([^\n]+)/)?.[1];
+		}
+		push(devs, d);
+	}
+	// connected, then paired, then the rest; by name
+	devs = sort(devs, (a, b) => (b.connected - a.connected) || (b.paired - a.paired) || ((a.name < b.name) ? -1 : 1));
+	return {
+		available: true, adapter: true,
+		powered: match(show, /Powered: yes/) != null,
+		discovering: match(show, /Discovering: yes/) != null,
+		name: match(show, /Alias: ([^\n]+)/)?.[1],
+		devices: devs
+	};
+}
+
+function bluetooth_action(b) {
+	let mac = uc(b.mac ?? '');
+	let a = b.action;
+	if (a == 'power')
+		return system(`bluetoothctl power ${b.on ? 'on' : 'off'} >/dev/null 2>&1`) == 0 ? null : 'failed';
+	if (a == 'scan') {
+		system('(bluetoothctl --timeout 20 scan on </dev/null >/dev/null 2>&1 &)');
+		return null;
+	}
+	if (!bt_mac_ok(mac))
+		return 'no such device';
+	if (a == 'connect') {
+		system(`mkdir -p ${BT_STATE}; echo pairing > ${BT_STATE}/${replace(mac, /:/g, '_')}`);
+		system(`(/usr/libexec/e5-bt-connect ${mac} >/dev/null 2>&1 &)`);
+		return null;
+	}
+	if (a == 'disconnect')
+		return system(`bluetoothctl disconnect ${mac} >/dev/null 2>&1`) == 0 ? null : 'failed';
+	if (a == 'remove') {
+		system(`rm -f ${BT_STATE}/${replace(mac, /:/g, '_')}`);
+		return system(`bluetoothctl remove ${mac} >/dev/null 2>&1`) == 0 ? null : 'failed';
+	}
+	return 'unknown action';
+}
+
 function log_key(k) {
 	let f = open(KEY_LOG, 'a');
 	if (!f)
@@ -1195,6 +1270,12 @@ global.handle_request = function(env) {
 			system(`rm -f ${RUN}/modem.json`);
 			system('(ifup wan) >/dev/null 2>&1 &');
 			return reply_json(200, { ok: true });
+		}
+		if (!post && path == '/bluetooth')
+			return reply_json(200, bluetooth_status());
+		if (post && path == '/bluetooth') {
+			let err = bluetooth_action(read_body(env));
+			return reply_json(err ? 400 : 200, { ok: !err, error: err, ...bluetooth_status() });
 		}
 		if (path == '/volume') {
 			// e5-linux's e5-volume: {"level":N,"max":15,"card":bool}

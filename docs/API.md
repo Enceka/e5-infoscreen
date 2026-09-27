@@ -47,7 +47,9 @@ for version 1 of all three.
 | `POST /backlight` | `{ level: 0-255, save: bool }` -- `save` makes it the level the screen comes back to |
 | `POST /wan-reconnect` | restarts the mobile connection |
 | `GET /advanced` | device, baseband, locks, SIM details (the 高级信息 page) |
-| `GET /volume` | `{ available, level, max, card }`: the speaker volume (e5-linux's `e5-volume`), 0 mute - `max` (15); `available: false` without it |
+| `GET /bluetooth` | `{ available, adapter, powered, discovering, name, devices: [ { mac, name, paired, connected, state, icon } ] }`: bluetoothd's view; unnamed devices (BLE beacons) left out; `state` is e5-linux's `e5-bt-connect` progress: `pairing`, `connecting`, `failed: <reason>` (`notfound`, `forgot`, `noanswer`, or bluetoothd's) |
+| `POST /bluetooth` | `{ action: "power", on }`, `{ action: "scan" }` (20 s), `{ action: "connect"\|"disconnect"\|"remove", mac }` -> `{ ok, error }` + the same as `GET`; `connect` runs in the background (poll `GET`) |
+| `GET /volume` | `{ available, level, max, card, output }`: the volume (`output`: `speaker` or `bluetooth`, where the sound goes); the speaker volume (e5-linux's `e5-volume`), 0 mute - `max` (15); `available: false` without it |
 | `POST /volume` | `{ step: 1\|-1 }` or `{ level }` -> the same as `GET` |
 | `GET /identity` | `{ imei, iccid, imsi, numbers[] }` |
 | `POST /at` | `{ cmd, timeout }` -> `{ ok, reply }` or `{ ok: false, error }`, and `warning: true` for a command that can leave the CP's AT server (`ATZ`, `AT&F`, `+CPMS=`) or the SIM (`+CFUN=0`, `+SFUN=3`/`5`) gone until a reboot (e5-linux's `e5-at` warns the same way; nothing is refused): one AT command through ModemManager (the AT channel's one owner), `timeout` 1-60 s (default 10).  A raw console: its replies can hold identifiers. |
