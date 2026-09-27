@@ -16,7 +16,7 @@ device at a glance, and is driven by touch and by the keypad.
 | Hotspot | SSID, a QR code to join, the passphrase on request, on/off, the clients (Wi-Fi and USB) |
 | Device | battery, uptime, time online, load, memory, LAN/IPv4/IPv6 addresses, brightness, reconnect |
 | Details (高级信息) | device (system, image, kernel, storage, temperature, battery voltage); baseband (model, firmware, 5G SA, modes); band locks (LTE, NR) and cell locks, decoded from `AT+SPLBAND` / `AT+SPFORCEFRQ`; SIM (active slot, operator, registration); the identifiers on request |
-| Settings (高级) | by function: **network** (network mode 5G/4G/3G, 5G/4G, 5G only (SA), 4G only; 5G access SA + NSA or NSA only; APN switch, automatic from the SIM by default; LTE/NR band lock, default bands, cell lock; reconnect), **AT commands** (a list of reads, run and shown; any command through `/api/at`), **devices** (block internet, kick off Wi-Fi), **charging** (limit, resume level, charge to full once -- e5-linux's `e5-charge`), **notifications** (SMS vibration, light up, SMS sound), **sound** (volume, the volume keys' tick, a test sound -- when e5-linux's `e5-volume` is there), **screen** (brightness, screen-off time, touch on/off, language), **system** (time zone, clock with seconds, clear traffic records, reboot, power off, boot Android once; Debian once is `e5-os debian --once` on the command line), and each plugin's settings |
+| Settings (高级) | by function: **network** (network mode 5G/4G/3G, 5G/4G, 5G only (SA), 4G only; 5G access SA + NSA or NSA only; APN switch, automatic from the SIM by default; LTE/NR band lock, default bands, cell lock; reconnect), **AT commands** (a list of reads, run and shown; any command through `/api/at`), **devices** (block internet, kick off Wi-Fi), **charging** (limit, resume level, charge to full once -- e5-linux's `e5-charge`), **notifications** (SMS vibration, light up, SMS sound), **sound** (volume, a test sound -- when e5-linux's `e5-volume` is there), **screen** (brightness, screen-off time, touch on/off, language), **system** (time zone, clock with seconds, clear traffic records, reboot, power off, boot Android once; Debian once is `e5-os debian --once` on the command line), and each plugin's settings |
 | Apps | the installed plugins; two come with it, a calculator and a network test |
 
 The status bar carries the operator, the technology, signal bars, the battery
@@ -66,7 +66,7 @@ Measured on the device (WebKit's names in brackets):
 | 1-9 | go to that page |
 | side key (`F1`) | the hotspot page (to show the QR code) |
 | power (`PowerOff`) | screen off |
-| volume up / down | the speaker volume (16 levels, 0 mute), a tick at the new level and the level over the page; works with the screen dark, without lighting it |
+| volume up / down | the speaker volume (16 levels, 0 mute), silently, with the level over the page; works with the screen dark, without lighting it |
 
 ## Plugins
 

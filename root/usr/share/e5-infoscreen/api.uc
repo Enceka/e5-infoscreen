@@ -1194,9 +1194,6 @@ global.handle_request = function(env) {
 				arg = (b.level != null) ? `set ${int(b.level)}` : (+b.step > 0) ? 'up' : (+b.step < 0) ? 'down' : '';
 			}
 			let r = json(trim(sh(`/usr/libexec/e5-volume ${arg} 2>/dev/null`) ?? '') || 'null');
-			// the volume keys' tick, at the new level (e5-audio.main.key_tick)
-			if (post && b.tick && cursor().get('e5-audio', 'main', 'key_tick') != '0')
-				system('/usr/libexec/e5-volume play tick >/dev/null 2>&1');
 			return reply_json(200, { available: true, ...(r ?? {}) });
 		}
 		if (post && path == '/key')

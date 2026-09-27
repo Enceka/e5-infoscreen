@@ -392,13 +392,13 @@ function post(path, body) {
 	}).then((r) => r.json()).catch(() => null);
 }
 
-// the volume keys: one step, a tick at the new level (e5-audio.main.key_tick)
-// and, with the screen lit, the level over the page for a moment
+// the volume keys: one step, silently, and with the screen lit the level over
+// the page for a moment
 let volTimer = null, volBusy = false;
 async function volumeKey(step) {
 	if (volBusy) return;                 // (held down: one request at a time)
 	volBusy = true;
-	const r = await post('volume', { step, tick: true });
+	const r = await post('volume', { step });
 	volBusy = false;
 	if (!r || !r.available) return;
 	if (blank) return;

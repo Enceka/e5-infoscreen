@@ -48,7 +48,7 @@ for version 1 of all three.
 | `POST /wan-reconnect` | restarts the mobile connection |
 | `GET /advanced` | device, baseband, locks, SIM details (the 高级信息 page) |
 | `GET /volume` | `{ available, level, max, card }`: the speaker volume (e5-linux's `e5-volume`), 0 mute - `max` (15); `available: false` without it |
-| `POST /volume` | `{ step: 1\|-1 }` or `{ level }`, and `tick: true` for the volume keys' tick at the new level -> the same as `GET` |
+| `POST /volume` | `{ step: 1\|-1 }` or `{ level }` -> the same as `GET` |
 | `GET /identity` | `{ imei, iccid, imsi, numbers[] }` |
 | `POST /at` | `{ cmd, timeout }` -> `{ ok, reply }` or `{ ok: false, error }`, and `warning: true` for a command that can leave the CP's AT server (`ATZ`, `AT&F`, `+CPMS=`) or the SIM (`+CFUN=0`, `+SFUN=3`/`5`) gone until a reboot (e5-linux's `e5-at` warns the same way; nothing is refused): one AT command through ModemManager (the AT channel's one owner), `timeout` 1-60 s (default 10).  A raw console: its replies can hold identifiers. |
 | `GET /at/presets` | `{ presets: [ { cmd, label } ] }`, the reads of the 高级 -> AT 指令 page |

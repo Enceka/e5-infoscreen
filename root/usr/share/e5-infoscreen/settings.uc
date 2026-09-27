@@ -356,9 +356,7 @@ const notify = uci_category('notify', L('通知', 'Notifications'), [
 const sound = uci_category('sound', L('声音', 'Sound'), [
 	{ id: 'volume', type: 'number', uci: 'e5-audio.main.volume', default: '10', min: 0, max: 15, step: 1,
 	  raw_min: 0, raw_max: 15, label: L('音量', 'Volume'), apply: '/usr/libexec/e5-volume apply',
-	  note: L('音量键也可以调节；0 为静音', 'The volume keys change it too; 0 is mute') },
-	{ id: 'key_tick', type: 'toggle', uci: 'e5-audio.main.key_tick', default: '1',
-	  label: L('按音量键时提示音', 'Tick on the volume keys') }
+	  note: L('音量键也可以调节；0 为静音', 'The volume keys change it too; 0 is mute') }
 ], function() {
 	return [ { id: 'test', type: 'action', label: L('播放测试音', 'Play a test sound') } ];
 }, function(item, value) {
