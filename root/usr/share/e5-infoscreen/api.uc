@@ -1,9 +1,11 @@
 {%
 // The info screen's data, served by uhttpd's ucode handler on 127.0.0.1:8088
-// (/etc/init.d/e5-infoscreen).  One persistent program: the traffic rate is
-// the difference between two polls, and the modem's state is cached, since
-// every mmcli call is a D-Bus round trip to ModemManager and, for the cell
-// information, AT commands on the modem.
+// (/etc/init.d/e5-infoscreen).  uhttpd runs every request in a fresh child,
+// so nothing survives in a variable: what has to outlive a request lives in
+// files under /tmp/run/e5-infoscreen -- the last traffic sample (the rate is
+// the difference between two polls) and the caches, since every mmcli call
+// is a D-Bus round trip to ModemManager and, for the cell information, AT
+// commands on the modem.
 //
 //   GET  /api/status         everything the pages show
 //   GET  /api/qr             the hotspot's join code (SVG, WIFI: URI)
@@ -36,9 +38,29 @@ const SMS_UNREAD = '/tmp/run/e5-sms/unread';
 const SMS_PATH = '/org/freedesktop/ModemManager1/SMS/';
 
 let bus = null;
-let prev_traffic = null;
-let modem_cache = null, modem_time = 0;
-let sms_cache = {};           // id -> message; a received message does not change
+const RUN = '/tmp/run/e5-infoscreen/api';
+
+// state that outlives the request: a JSON file, and its age by its mtime
+function state_get(name, ttl) {
+	let path = `${RUN}/${name}.json`;
+	if (ttl != null) {
+		let st = stat(path);
+		if (!st || time() - st.mtime > ttl)
+			return null;
+	}
+	try {
+		return json(readfile(path) ?? 'null');
+	}
+	catch (e) {
+		return null;
+	}
+}
+
+function state_put(name, obj) {
+	system(`mkdir -p ${RUN}`);
+	writefile(`${RUN}/${name}.json.tmp`, sprintf('%J', obj));
+	system(`mv -f ${RUN}/${name}.json.tmp ${RUN}/${name}.json`);
+}
 
 function now() {
 	let c = clock(true);
@@ -166,14 +188,14 @@ function parse_cell(line) {
 }
 
 function modem_status() {
-	if (modem_cache && now() - modem_time < MODEM_TTL)
-		return modem_cache;
+	let cached = state_get('modem', MODEM_TTL);
+	if (cached)
+		return cached;
 
 	let m = sh_json('mmcli -J -m any --timeout=5 2>/dev/null')?.modem;
 	if (!m) {
-		modem_cache = { present: false };
-		modem_time = now();
-		return modem_cache;
+		state_put('modem', { present: false });
+		return { present: false };
 	}
 	let g = m.generic ?? {}, g3 = m['3gpp'] ?? {};
 	let sig = sh_json('mmcli -J -m any --timeout=5 --signal-get 2>/dev/null')?.modem?.signal ?? {};
@@ -190,7 +212,7 @@ function modem_status() {
 			neighbours++;
 	}
 
-	modem_cache = {
+	let r = {
 		present: true,
 		state: mm_val(g.state),
 		power: mm_val(g['power-state']),
@@ -207,22 +229,25 @@ function modem_status() {
 		cell: serving,
 		neighbours
 	};
-	modem_time = now();
-	return modem_cache;
+	state_put('modem', r);
+	return r;
 }
 
 function traffic() {
 	let base = `/sys/class/net/${WAN_DEV}/statistics/`;
 	let rx = read_num(base + 'rx_bytes'), tx = read_num(base + 'tx_bytes');
 	let t = now();
+	let prev = state_get('traffic');
 	let r = { rx_total: rx, tx_total: tx, rx_rate: null, tx_rate: null };
-	if (rx != null && prev_traffic && t > prev_traffic.t && rx >= prev_traffic.rx) {
-		let dt = t - prev_traffic.t;
-		r.rx_rate = (rx - prev_traffic.rx) / dt;
-		r.tx_rate = (tx - prev_traffic.tx) / dt;
+	// (a counter that went down is a new bearer: no rate for this one poll)
+	if (rx != null && prev && t > prev.t && t - prev.t < 60 && rx >= prev.rx && tx >= prev.tx) {
+		let dt = t - prev.t;
+		r.rx_rate = (rx - prev.rx) / dt;
+		r.tx_rate = (tx - prev.tx) / dt;
 	}
-	if (rx != null)
-		prev_traffic = { t, rx, tx };
+	// a sample less than a second old is kept: two quick polls would divide by ~0
+	if (rx != null && (!prev || t - prev.t >= 1 || rx < prev.rx))
+		state_put('traffic', { t, rx, tx });
 	return r;
 }
 
@@ -273,9 +298,18 @@ function wifi_status() {
 }
 
 function clients() {
+	// the stations, from hostapd: this Wi-Fi driver has no station dump, so
+	// iwinfo's assoclist (nl80211) is always empty
 	let wifi = {};
-	for (let s in (ubus_call('iwinfo', 'assoclist', { device: WLAN_DEV })?.results ?? []))
-		wifi[lc(s.mac)] = s.signal;
+	if (!bus)
+		bus = connect();
+	for (let obj in (bus?.list() ?? [])) {
+		if (substr(obj, 0, 8) != 'hostapd.')
+			continue;
+		for (let mac, st in (ubus_call(obj, 'get_clients')?.clients ?? {}))
+			if (st.assoc)
+				wifi[lc(mac)] = st.signal;
+	}
 
 	let usb_up = read_trim('/sys/class/net/usb0/carrier') == '1';
 	let list = [], seen = {};
@@ -360,9 +394,10 @@ function sms_unread() {
 	return ids;
 }
 
-function sms_one(id) {
-	if (sms_cache[id] && sms_cache[id].state == 'received')
-		return sms_cache[id];
+// a received message does not change: kept in sms.json by id
+function sms_one(cache, id) {
+	if (cache[id] && cache[id].state == 'received')
+		return cache[id];
 	let s = sh_json(`mmcli -J -m any --timeout=5 -s ${SMS_PATH}${id} 2>/dev/null`)?.sms;
 	if (!s)
 		return null;
@@ -375,7 +410,7 @@ function sms_one(id) {
 		state: mm_val(p.state),
 		type: mm_val(p['pdu-type'])
 	};
-	sms_cache[id] = msg;
+	cache[id] = msg;
 	return msg;
 }
 
@@ -383,22 +418,23 @@ function sms_list() {
 	// (mmcli names this list with one flat key, "modem.messaging.sms")
 	let lj = sh_json('mmcli -J -m any --timeout=5 --messaging-list-sms 2>/dev/null');
 	let paths = lj?.['modem.messaging.sms'] ?? lj?.modem?.messaging?.sms ?? [];
-	let unread = {}, list = [], live = {};
+	let unread = {}, list = [], live = {}, cache = state_get('sms') ?? {};
 	for (let id in sms_unread())
 		unread[id] = true;
 	for (let p in paths) {
 		let m = match(p, /\/SMS\/([0-9]+)$/);
 		if (!m)
 			continue;
-		let msg = sms_one(+m[1]);
+		let msg = sms_one(cache, +m[1]);
 		if (!msg || msg.type == 'submit')     // (the ones this device sent)
 			continue;
 		live[msg.id] = true;
 		push(list, { ...msg, unread: !!unread[msg.id] });
 	}
-	for (let id in keys(sms_cache))
+	for (let id in keys(cache))
 		if (!live[id])
-			delete sms_cache[id];
+			delete cache[id];
+	state_put('sms', cache);
 	// newest first: the timestamps are ISO 8601 with the network's offset
 	return sort(list, (a, b) => (a.time == b.time) ? b.id - a.id : ((a.time ?? '') < (b.time ?? '') ? 1 : -1));
 }
@@ -409,7 +445,9 @@ function sms_delete(id) {
 		return false;
 	let ok = system(`mmcli -m any --timeout=10 --messaging-delete-sms=${SMS_PATH}${id} >/dev/null 2>&1`) == 0;
 	if (ok) {
-		delete sms_cache[id];
+		let cache = state_get('sms') ?? {};
+		delete cache[id];
+		state_put('sms', cache);
 		// and out of the unread list
 		let rest = filter(split(readfile(SMS_UNREAD) ?? '', '\n'), (l) => l != '' && l != `${SMS_PATH}${id}`);
 		writefile(SMS_UNREAD, length(rest) ? join('\n', rest) + '\n' : '');
@@ -498,11 +536,10 @@ function disk(path) {
 	return (length(f) >= 4) ? { total: +f[1] * 1024, used: +f[2] * 1024 } : null;
 }
 
-let adv_cache = null, adv_time = 0;
-
 function advanced() {
-	if (adv_cache && now() - adv_time < 30)
-		return adv_cache;
+	let cached = state_get('advanced', 30);
+	if (cached)
+		return cached;
 
 	let rel = read_kv('/etc/openwrt_release');
 	let b = '/sys/class/power_supply/battery/';
@@ -525,7 +562,7 @@ function advanced() {
 	let card = m ? payload_ints(at('AT+SPACTCARD?'))[0] : null;
 	let sa = m ? payload_ints(at('AT+SP5GRAN?'))[0] : null;
 
-	adv_cache = {
+	let r = {
 		device: {
 			model: 'Rongyue E5',
 			os: rel.DISTRIB_DESCRIPTION,
@@ -558,8 +595,8 @@ function advanced() {
 			operator: mm_val(g3['operator-name'])
 		} : null
 	};
-	adv_time = now();
-	return adv_cache;
+	state_put('advanced', r);
+	return r;
 }
 
 function identity() {
@@ -714,7 +751,7 @@ global.handle_request = function(env) {
 			return reply_json(200, { ok: set_backlight(b.level ?? 0, !!b.save) });
 		}
 		if (post && path == '/wan-reconnect') {
-			modem_time = 0;
+			system(`rm -f ${RUN}/modem.json`);
 			system('(ifup wan) >/dev/null 2>&1 &');
 			return reply_json(200, { ok: true });
 		}
