@@ -251,5 +251,25 @@ return function(ctx) {
 | `ctx.read_trim(path)`, `ctx.read_num(path)` | a file's content, trimmed / as a number |
 | `ctx.log(text)` | a line in the system log (`logread -e e5-infoscreen/<id>`) |
 
+### 5.5 Packages
+
+An app is installed from a package: a `.tar.gz` (`.tgz`) or `.zip` with the
+plugin directory's files at its top, or inside one top directory:
+
+```sh
+tar -czf nettest-1.0.tar.gz -C www/plugins nettest     # or: cd www/plugins && zip -r nettest-1.0.zip nettest
+```
+
+Install it in LuCI (`http://192.168.9.1`, 服务 -> 信息屏应用, "上传并安装"), or on
+the device with `/usr/libexec/e5-infoscreen/plugin install FILE`.  The
+manifest has to be valid (an `id` of lower-case letters, digits, `-` and `_`,
+an `api_version` the screen has, a `name`); the archive may not hold absolute
+paths, `..`, or links, nor more than 20 MB.  An app with the same id is
+replaced (the upgrade).  Installed apps live in `/etc/e5-infoscreen/plugins`
+and survive an update of the system image; the built-in ones are in the
+image.  Uninstall in LuCI, on the screen (高级 -> 应用管理) or with
+`plugin remove ID`.  `GET /plugins` marks each manifest `builtin` (true for the
+image's own); `POST /plugins-remove { id }` uninstalls.
+
 The two plugins in `www/plugins/` are the examples: `calculator` (a page, keys,
 `onBack`) and `nettest` (a backend, settings, `keepAwake`).

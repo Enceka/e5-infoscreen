@@ -33,7 +33,7 @@
 // are returned by /api/identity alone, which the page calls when asked to
 // show them.
 
-import { readfile, writefile, popen, open, stat, glob, lsdir } from 'fs';
+import { readfile, writefile, popen, open, stat, glob, lsdir, lstat } from 'fs';
 import { connect } from 'ubus';
 import { cursor } from 'uci';
 
@@ -854,6 +854,8 @@ function plugin_manifests() {
 		if (type(m) != 'object' || m.id != id || +(m.api_version ?? 0) > API_VERSION)
 			continue;
 		m.has_backend = stat(`${PLUGINS}/${id}/backend.uc`) != null;
+		// installed ones are links into /etc/e5-infoscreen/plugins (plugin link)
+		m.builtin = lstat(`${PLUGINS}/${id}`)?.type != 'link';
 		push(out, m);
 	}
 	return sort(out, (a, b) => (a.order ?? 50) - (b.order ?? 50));
@@ -1239,6 +1241,15 @@ global.handle_request = function(env) {
 			let b = read_body(env);
 			let err = device_action(lc(b.mac ?? ''), b.action);
 			return reply_json(err ? 400 : 200, { ok: !err, error: err, devices: devices() });
+		}
+		if (post && path == '/plugins-remove') {
+			// (installing is LuCI's: 服务 -> 信息屏应用, where a file can be uploaded)
+			let id = read_body(env).id ?? '';
+			if (!match(id, /^[a-z0-9][a-z0-9_-]*$/))
+				return reply_json(400, { ok: false, error: 'bad id' });
+			let out = sh(`/usr/libexec/e5-infoscreen/plugin remove ${id} 2>&1`) ?? '';
+			let ok = match(out, /^removed /) != null;
+			return reply_json(ok ? 200 : 400, { ok, error: ok ? null : trim(out) });
 		}
 		if (!post && path == '/plugins')
 			return reply_json(200, { api_version: API_VERSION, plugins: plugin_manifests() });

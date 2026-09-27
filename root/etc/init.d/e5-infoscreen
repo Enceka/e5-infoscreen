@@ -24,6 +24,10 @@ start_service() {
 	config_get_bool enabled main enabled 1
 	[ "$enabled" = 1 ] || return 0
 
+	# the installed apps (/etc/e5-infoscreen/plugins) into the web root: an
+	# image update brings a web root without their links
+	/usr/libexec/e5-infoscreen/plugin link
+
 	# the saved backlight level (the page changes it, and turns it off when idle)
 	local level bl
 	config_get level main brightness 120

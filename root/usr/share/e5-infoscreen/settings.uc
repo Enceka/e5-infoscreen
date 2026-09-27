@@ -500,6 +500,7 @@ const about = {
 // (the AT page is its own view as well: /api/at, /api/at/presets)
 return [ network, { id: 'at', label: L('AT 指令', 'AT commands'), view: 'at' },
          { id: 'devices', label: L('设备管理', 'Devices'), view: 'devices' },
+         { id: 'appmgr', label: L('应用管理', 'Apps'), view: 'apps' },
          ...(ctx.run('command -v bluetoothctl >/dev/null 2>&1') == 0
              ? [ { id: 'bluetooth', label: L('蓝牙', 'Bluetooth'), view: 'bluetooth' } ] : []),
          charge, notify, ...(has_sound ? [ sound ] : []), screen, system_cat, about ];

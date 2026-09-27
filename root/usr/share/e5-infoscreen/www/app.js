@@ -28,7 +28,7 @@ const I18N = {
 		idle_reg: '未注册', denied: '被拒绝',
 		since_boot: '本次开机', network: '网络', clients: '在线设备', battery: '电池',
 		bandwidth: '带宽', neighbours: '邻区', uptime: '开机时长', wan_uptime: '联网时长',
-		load: '负载', memory: '内存', subscribed: '签约速率', volume: '音量', muted: '静音', paused_short: '暂停',
+		load: '负载', memory: '内存', subscribed: '签约速率', volume: '音量', muted: '静音', paused_short: '暂停', app_builtin: '内置', app_user: '已安装', app_version: '版本', app_kind: '来源', app_desc: '说明', app_open: '打开', app_remove: '卸载', app_removed: '已卸载', app_builtin_note: '内置应用卸载后，下次更新系统镜像时会回来', app_install_note: '安装新应用：在电脑浏览器打开 http://192.168.9.1 → 服务 → 信息屏应用，上传应用包（.tar.gz 或 .zip）',
 		bluetooth: '蓝牙', bt_none: '没有蓝牙适配器', bt_scan: '搜索设备', bt_scanning: '正在搜索…', bt_name: '本机名称', bt_mine: '我的设备', bt_found: '附近的设备', bt_none_found: '没有找到设备，点“搜索设备”', bt_note: '耳机或音箱请先进入配对模式；连接后声音从蓝牙播放', bt_state: '状态', bt_connect: '连接', bt_pair: '配对并连接', bt_disconnect: '断开', bt_remove: '忘记此设备', bt_connected: '已连接', bt_paired: '已配对', bt_pairing: '配对中…', bt_connecting: '连接中…', bt_failed: '连接失败', bt_notfound: '没有找到设备：请让它进入配对模式后再试', bt_forgot: '设备已忘记配对：请让它进入配对模式后再连接', bt_noanswer: '设备没有响应：请打开耳机盒、戴上耳机，并确认它没有连着手机', brightness: '亮度', reconnect: '重新连接网络',
 		show_key: '显示密码', hide_key: '隐藏密码', hs_off: '热点已关闭', hs_down: '热点未启动', on: '开', off: '关',
 		connected: '已连接', connecting: '连接中', disconnected: '未连接',
@@ -61,7 +61,7 @@ const I18N = {
 		idle_reg: 'Not registered', denied: 'Denied',
 		since_boot: 'Since boot', network: 'Network', clients: 'Clients', battery: 'Battery',
 		bandwidth: 'Bandwidth', neighbours: 'Neighbours', uptime: 'Uptime', wan_uptime: 'Online',
-		load: 'Load', memory: 'Memory', subscribed: 'Subscribed rate', volume: 'Volume', muted: 'Muted', paused_short: 'paused',
+		load: 'Load', memory: 'Memory', subscribed: 'Subscribed rate', volume: 'Volume', muted: 'Muted', paused_short: 'paused', app_builtin: 'built in', app_user: 'installed', app_version: 'Version', app_kind: 'Source', app_desc: 'About', app_open: 'Open', app_remove: 'Uninstall', app_removed: 'Uninstalled', app_builtin_note: 'A built-in app comes back with the next image update', app_install_note: 'To install an app: open http://192.168.9.1 in a browser -> Services -> Info screen apps, and upload its package (.tar.gz or .zip)',
 		bluetooth: 'Bluetooth', bt_none: 'No Bluetooth adapter', bt_scan: 'Search', bt_scanning: 'Searching…', bt_name: 'Name', bt_mine: 'My devices', bt_found: 'Nearby', bt_none_found: 'Nothing found; press Search', bt_note: 'Put headphones or a speaker in pairing mode first; once connected the sound plays there', bt_state: 'State', bt_connect: 'Connect', bt_pair: 'Pair and connect', bt_disconnect: 'Disconnect', bt_remove: 'Forget', bt_connected: 'Connected', bt_paired: 'Paired', bt_pairing: 'Pairing…', bt_connecting: 'Connecting…', bt_failed: 'Failed', bt_notfound: 'Not found: put it in pairing mode and try again', bt_forgot: 'The device forgot the pairing: put it in pairing mode and connect again', bt_noanswer: 'No answer: take the earbuds out of the case and make sure no phone is connected to them', brightness: 'Brightness', reconnect: 'Reconnect',
 		show_key: 'Show key', hide_key: 'Hide key', hs_off: 'Hotspot off', hs_down: 'Hotspot not up', on: 'On', off: 'Off',
 		connected: 'Connected', connecting: 'Connecting', disconnected: 'Offline',
@@ -929,7 +929,7 @@ function stRow(key, label, value, opts = {}) {
 function stRender() {
 	const v = stTop();
 	if (!v) return;
-	const path = st.map((x) => x.view == 'menu' ? t('settings') : x.view == 'appcats' ? t('app_settings') : x.view == 'atres' ? x.cmd : x.cat ? lbl(x.cat.label) : x.item ? lbl(x.item.label) : x.dev ? (x.dev.name ?? x.dev.ip ?? x.dev.mac) : x.view == 'btdev' ? (x.name ?? x.mac) : '').join(' › ');
+	const path = st.map((x) => x.view == 'menu' ? t('settings') : x.view == 'appcats' ? t('app_settings') : x.view == 'atres' ? x.cmd : x.cat ? lbl(x.cat.label) : x.item ? lbl(x.item.label) : x.dev ? (x.dev.name ?? x.dev.ip ?? x.dev.mac) : x.view == 'btdev' ? (x.name ?? x.mac) : x.view == 'app' ? (lbl(x.app.name) || x.app.id) : '').join(' › ');
 	setText('st-path', path);
 	let html = '';
 	if (v.view == 'menu') {
@@ -973,6 +973,21 @@ function stRender() {
 			v.list.map((d, i) => stRow('dev:' + i, d.name ?? d.ip ?? d.mac,
 				d.blocked ? t('blocked') : d.online ? `${t('online')} · ${t(d.via ?? 'wifi')}` : t('offline'),
 				{ on: d.online && !d.blocked, chev: true })).join('') : `<div class="sub">${esc(t('no_devices'))}</div>`;
+	} else if (v.view == 'apps') {
+		html = v.list == null ? `<div class="sub">${esc(t('loading'))}</div>` :
+			(v.list.length ? v.list.map((m) => stRow('apm:' + m.id, lbl(m.name) || m.id,
+				(m.version ? 'v' + m.version + ' · ' : '') + (m.builtin ? t('app_builtin') : t('app_user')), { chev: true })).join('')
+				: `<div class="sub">${esc(t('no_apps'))}</div>`) +
+			`<div class="stnote">${esc(t('app_install_note'))}</div>`;
+	} else if (v.view == 'app') {
+		const m = v.app;
+		html = stRow('info:appid', 'ID', m.id, { info: true }) +
+			stRow('info:appver', t('app_version'), m.version ?? '--', { info: true }) +
+			stRow('info:appkind', t('app_kind'), m.builtin ? t('app_builtin') : t('app_user'), { info: true }) +
+			(m.description ? stRow('info:appdesc', t('app_desc'), lbl(m.description), { info: true }) : '') +
+			stRow('apa:open', t('app_open'), '') +
+			stRow('apa:remove', t('app_remove'), '') +
+			(m.builtin ? `<div class="stnote">${esc(t('app_builtin_note'))}</div>` : '');
 	} else if (v.view == 'bluetooth') {
 		const b = v.bt;
 		if (!b) html = `<div class="sub">${esc(t('loading'))}</div>`;
@@ -1081,6 +1096,14 @@ async function stClick(key, el) {
 			if (stTop() === nv) stRender();
 			return;
 		}
+		if (c.view == 'apps') {
+			const nv = { view: 'apps', cat: c, list: null };
+			st.push(nv); stRender();
+			const r = await fetch('/api/plugins', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+			nv.list = r?.plugins ?? [];
+			if (stTop() === nv) stRender();
+			return;
+		}
 		if (c.view == 'bluetooth') {
 			const nv = { view: 'bluetooth', cat: c, bt: null };
 			st.push(nv); stRender();
@@ -1146,6 +1169,30 @@ async function stClick(key, el) {
 			await stPost(v.parent, { id: it.id, value: v.draft });
 			st.pop(); stRender();
 		}
+		return;
+	}
+	if (k == 'apm') {
+		const m = v.list.find((x) => x.id == arg);
+		if (m) { st.push({ view: 'app', cat: v.cat, app: m, parent: v }); stRender(); }
+		return;
+	}
+	if (k == 'apa') {
+		if (arg == 'open') {
+			showPage(P.apps);
+			await loadApps();
+			const m = apps.find((x) => x.id == v.app.id);
+			if (m) openApp(m);
+			return;
+		}
+		if (!stConfirm(key, el)) return;
+		const r = await post('plugins-remove', { id: v.app.id });
+		toast(r?.ok ? t('app_removed') : `${t('failed')}${r?.error ? ': ' + r.error : ''}`);
+		if (r?.ok) {
+			st.pop();
+			v.parent.list = v.parent.list.filter((x) => x.id != v.app.id);
+			apps = null;
+		}
+		stRender();
 		return;
 	}
 	if (k == 'bt') {

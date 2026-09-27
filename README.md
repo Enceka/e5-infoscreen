@@ -75,6 +75,12 @@ A plugin is a directory under `/usr/share/e5-infoscreen/www/plugins/<id>/`: a
 `backend.uc` and settings.  [`docs/API.md`](docs/API.md) is the reference for
 the core API, the settings items, the SDK and the backend context.
 
+## Apps
+
+The Apps page shows the plugins; two come with the screen.  Install more in
+LuCI (服务 -> 信息屏应用: upload a `.tar.gz` or `.zip`), uninstall there or
+on the screen (高级 -> 应用管理).  The package format: [`docs/API.md`](docs/API.md) 5.5.
+
 ## Install
 
 On an E5 running e5-linux's OpenWrt, with the WAN up (the packages come from

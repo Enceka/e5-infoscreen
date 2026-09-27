@@ -207,5 +207,20 @@ return function(ctx) {
 | `ctx.read_trim(路径)`、`ctx.read_num(路径)` | 读文件内容，去掉首尾空白 / 转成数字 |
 | `ctx.log(文字)` | 写一行系统日志（`logread -e e5-infoscreen/<id>`） |
 
+### 5.5 应用包
+
+应用通过应用包安装：一个 `.tar.gz`（`.tgz`）或 `.zip`，插件目录里的文件放在压缩包根目录，或放在唯一的顶层目录里：
+
+```sh
+tar -czf nettest-1.0.tar.gz -C www/plugins nettest     # 或：cd www/plugins && zip -r nettest-1.0.zip nettest
+```
+
+在 LuCI（`http://192.168.9.1`，服务 → 信息屏应用，“上传并安装”）里安装，或在设备上运行
+`/usr/libexec/e5-infoscreen/plugin install 文件`。manifest 必须有效（`id` 由小写字母、数字、`-`、`_` 组成，
+`api_version` 不高于信息屏的版本，有 `name`）；压缩包里不能有绝对路径、`..` 或链接，解压后不超过 20 MB。
+同一 id 的应用会被替换（即升级）。安装的应用保存在 `/etc/e5-infoscreen/plugins`，更新系统镜像后仍在；内置应用在
+镜像里。可以在 LuCI、屏幕上（高级 → 应用管理）或用 `plugin remove ID` 卸载。`GET /plugins` 的每个 manifest 带
+`builtin`（镜像自带的为 true）；`POST /plugins-remove { id }` 卸载。
+
 `www/plugins/` 下的两个插件就是示例：`calculator`（页面、按键、`onBack`）和
 `nettest`（后端、设置项、`keepAwake`）。

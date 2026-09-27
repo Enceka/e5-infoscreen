@@ -66,6 +66,11 @@
 一个加载 `/sdk/e5.js` 的页面，可选的 ucode 后端 `backend.uc` 和设置项。核心接口、设置项、
 SDK 和后端上下文的说明见 [`docs/API.zh-CN.md`](docs/API.zh-CN.md)。
 
+## 应用
+
+“应用”页显示已安装的插件，自带两个。更多应用在 LuCI 里安装（服务 → 信息屏应用：上传 `.tar.gz` 或 `.zip`），
+可以在那里或屏幕上（高级 → 应用管理）卸载。应用包格式见 [`docs/API.zh-CN.md`](docs/API.zh-CN.md) 5.5 节。
+
 ## 安装
 
 在运行 e5-linux 的 OpenWrt 的 E5 上安装，WAN 需已联网（软件包来自 OpenWrt 的

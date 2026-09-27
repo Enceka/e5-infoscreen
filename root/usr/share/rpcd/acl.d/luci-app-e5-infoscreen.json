@@ -1,0 +1,18 @@
+{
+	"luci-app-e5-infoscreen": {
+		"description": "Grant access to the info screen's apps (list, install, uninstall)",
+		"read": {
+			"ubus": {
+				"e5-infoscreen": [ "list" ]
+			}
+		},
+		"write": {
+			"ubus": {
+				"e5-infoscreen": [ "install", "remove" ]
+			},
+			"file": {
+				"/tmp/e5-plugin.upload": [ "write" ]
+			}
+		}
+	}
+}
