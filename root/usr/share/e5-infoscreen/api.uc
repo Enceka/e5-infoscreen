@@ -573,38 +573,39 @@ function at(cmd, timeout) {
 }
 
 
-// refused: writing the IMEI, in any ;-separated part (e5-linux's e5-at has
-// the same rule).  Everything else is sent as it is -- also the commands
-// after which the CP's AT server (ATZ, AT&F, AT+CPMS=) or the SIM (AT+CFUN=0,
-// AT+SFUN=3/5) is gone until a reboot.
-function at_refused(cmd) {
+// warned about, not refused (e5-linux's e5-at warns the same way): the
+// commands after which the CP's AT server (ATZ, AT&F, AT+CPMS=) or the SIM
+// (AT+CFUN=0, AT+SFUN=3/5) is gone until a reboot.  Every ;-separated part is
+// checked; the command is still sent.
+function at_warning(cmd) {
 	let s = uc(replace(`${cmd}`, /\s+/g, ''));
-	if (substr(s, 0, 2) != 'AT')
-		return 'not an AT command';
-	if (match(s, /[\r\n]/))
-		return 'one command, one line';
-	for (let part in split(substr(s, 2), ';')) {
+	if (substr(s, 0, 2) == 'AT') s = substr(s, 2);
+	for (let part in split(s, ';')) {
 		part = replace(part, /^AT/, '');
-		if (match(part, /^(\+SPIMEI=|\+EGMR=1)/))
-			return 'it writes the IMEI';
+		if (match(part, /^(Z|&F|\+CPMS=|\+CFUN=0|\+SFUN=3|\+SFUN=5)/))
+			return true;
 	}
-	return null;
+	return false;
 }
 
-// /api/at: the reply, or the modem's error text
+// /api/at: the reply, or the modem's error text; `warning` marks a command
+// that can leave the modem's AT server or SIM dead until a reboot
 function at_console(cmd, timeout) {
-	let why = at_refused(cmd);
-	if (why)
-		return { ok: false, error: `refused: ${why}` };
 	let q = replace(`${cmd}`, /'/g, "'\\''");
 	let t = int(timeout ?? 10);
 	if (t < 1 || t > 60) t = 10;
 	let out = sh(`mmcli -m any --timeout=${t} --command='${q}' 2>&1`) ?? '';
 	let reply = at_reply(out);
+	let r = null;
 	if (reply != null)
-		return { ok: true, reply };
-	let i = index(out, 'error: ');
-	return { ok: false, error: trim((i >= 0) ? substr(out, i + 7) : out) };
+		r = { ok: true, reply };
+	else {
+		let i = index(out, 'error: ');
+		r = { ok: false, error: trim((i >= 0) ? substr(out, i + 7) : out) };
+	}
+	if (at_warning(cmd))
+		r.warning = true;
+	return r;
 }
 
 // useful reads for the screen's AT page; nothing here changes the modem
@@ -791,8 +792,7 @@ function make_ctx(ns) {
 	return {
 		api_version: API_VERSION,
 		sh, sh_json, read_trim, read_num, payload_ints,
-		// a plugin's AT commands go through the same refusals as /api/at
-		at: ns ? (cmd, t) => (at_refused(cmd) ? null : at(cmd, t)) : at,
+		at,
 		at_console,
 		ubus: ubus_call,
 		uci: () => cursor(),

@@ -19,7 +19,7 @@ const I18N = {
 		kick: '踢下 Wi-Fi', kicked: '已踢下线', mac: 'MAC', via: '连接', no_devices: '没有设备',
 		loading: '读取中…', app_settings: '应用设置', current_voltage: '电流 / 电压',
 		charge_paused: '已暂停充电', limit: '上限', wan: '外网', lan: '内网',
-		at_running: '执行中…', at_again: '再执行一次', at_note: '任意指令可通过 SSH 的 e5-at 或插件的 /api/at 发送', system: '系统', image: '镜像版本', kernel: '内核',
+		at_running: '执行中…', at_again: '再执行一次', at_note: '任意指令可通过 SSH 的 e5-at 或插件的 /api/at 发送', at_risky: '该指令可能让基带直到重启前不再响应 AT 或识别不到 SIM 卡', system: '系统', image: '镜像版本', kernel: '内核',
 		storage: '存储', temperature: '温度', baseband: '基带', modes: '网络模式',
 		locks: '锁定', lte_bands: 'LTE 频段', nr_bands: 'NR 频段', cell_lock: '锁小区',
 		not_locked: '未锁定', slot: '卡槽', operator: '运营商', registration: '注册',
@@ -51,7 +51,7 @@ const I18N = {
 		kick: 'Kick off Wi-Fi', kicked: 'Kicked', mac: 'MAC', via: 'Via', no_devices: 'No devices',
 		loading: 'Loading…', app_settings: 'App settings', current_voltage: 'Current / voltage',
 		charge_paused: 'Charging paused', limit: 'limit', wan: 'WAN', lan: 'LAN',
-		at_running: 'Running…', at_again: 'Run again', at_note: 'Any command: e5-at over SSH, or /api/at from a plugin', system: 'System', image: 'Image', kernel: 'Kernel',
+		at_running: 'Running…', at_again: 'Run again', at_note: 'Any command: e5-at over SSH, or /api/at from a plugin', at_risky: 'This command may leave the baseband unresponsive to AT or unaware of the SIM until a reboot', system: 'System', image: 'Image', kernel: 'Kernel',
 		storage: 'Storage', temperature: 'Temperature', baseband: 'Baseband', modes: 'Modes',
 		locks: 'Locks', lte_bands: 'LTE bands', nr_bands: 'NR bands', cell_lock: 'Cell lock',
 		not_locked: 'Not locked', slot: 'Slot', operator: 'Operator', registration: 'Registration',
@@ -909,6 +909,7 @@ function stRender() {
 	} else if (v.view == 'atres') {
 		html = `<div class="card"><div class="sub">${esc(v.cmd)}</div>` +
 			`<div class="smstext" style="margin-top:6px;font-size:13px">${esc(v.reply ?? t('at_running'))}</div></div>` +
+			(v.warn ? `<div class="stnote">${esc(v.warn)}</div>` : '') +
 			stRow('atagain:', t('at_again'), '');
 	} else if (v.view == 'devices') {
 		html = v.list == null ? `<div class="sub">${esc(t('loading'))}</div>` : v.list.length ?
@@ -987,6 +988,7 @@ async function stClick(key, el) {
 			method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd })
 		}).then((r) => r.json()).catch(() => null);
 		nv.reply = r?.ok ? (r.reply || 'OK') : `${t('failed')}: ${r?.error ?? ''}`;
+		nv.warn = r?.warning ? t('at_risky') : null;
 		if (stTop() === nv) stRender();
 		return;
 	}
