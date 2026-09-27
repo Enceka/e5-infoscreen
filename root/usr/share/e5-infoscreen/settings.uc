@@ -312,10 +312,42 @@ const screen = uci_category('screen', L('屏幕', 'Screen'), [
 
 /* ---------- system ---------- */
 
+// zonename -> the POSIX TZ string OpenWrt keeps in system.timezone
+const ZONES = [
+	[ 'Asia/Shanghai', 'CST-8', L('中国 (北京时间)', 'China (Beijing)') ],
+	[ 'Asia/Hong_Kong', 'HKT-8', L('中国香港', 'China (Hong Kong)') ],
+	[ 'Asia/Taipei', 'CST-8', L('中国台湾', 'China (Taiwan)') ],
+	[ 'Asia/Singapore', '<+08>-8', L('新加坡', 'Singapore') ],
+	[ 'Asia/Tokyo', 'JST-9', L('东京', 'Tokyo') ],
+	[ 'Asia/Seoul', 'KST-9', L('首尔', 'Seoul') ],
+	[ 'Asia/Kolkata', 'IST-5:30', L('印度', 'India') ],
+	[ 'Asia/Dubai', '<+04>-4', L('迪拜', 'Dubai') ],
+	[ 'Europe/Moscow', 'MSK-3', L('莫斯科', 'Moscow') ],
+	[ 'Europe/Berlin', 'CET-1CEST,M3.5.0,M10.5.0/3', L('中欧 (柏林)', 'Central Europe (Berlin)') ],
+	[ 'Europe/London', 'GMT0BST,M3.5.0/1,M10.5.0', L('伦敦', 'London') ],
+	[ 'America/New_York', 'EST5EDT,M3.2.0,M11.1.0', L('美国东部', 'US Eastern') ],
+	[ 'America/Chicago', 'CST6CDT,M3.2.0,M11.1.0', L('美国中部', 'US Central') ],
+	[ 'America/Los_Angeles', 'PST8PDT,M3.2.0,M11.1.0', L('美国西部', 'US Pacific') ],
+	[ 'UTC', 'UTC0', L('UTC', 'UTC') ]
+];
+
+function system_section() {
+	let name = null;
+	ctx.uci().foreach('system', 'system', (s) => { name ??= s['.name']; });
+	return name;
+}
+
 const system_cat = {
 	id: 'system', label: L('系统', 'System'),
 	items: function() {
+		let sec = system_section();
+		let zone = sec ? ctx.uci().get('system', sec, 'zonename') : null;
 		return [
+			{ id: 'timezone', type: 'choice', label: L('时区', 'Time zone'), value: zone ?? 'UTC',
+			  options: map(ZONES, (z) => ({ value: z[0], label: z[2] })),
+			  note: L('屏幕会重新载入', 'The screen reloads') },
+			{ id: 'clock_seconds', type: 'toggle', label: L('时间显示秒', 'Clock with seconds'),
+			  value: ctx.uci().get('e5-infoscreen', 'main', 'clock_seconds') == '1' },
 			{ id: 'version', type: 'info', label: L('镜像版本', 'Image'), value: ctx.read_trim('/etc/e5/image-version') ?? '--' },
 			{ id: 'reboot', type: 'action', label: L('重启', 'Reboot'), confirm: true },
 			{ id: 'debian_once', type: 'action', label: L('下次启动 Debian', 'Boot Debian once'), confirm: true,
@@ -324,7 +356,27 @@ const system_cat = {
 			  note: L('重启进 Android 一次', 'One boot of Android') }
 		];
 	},
-	set: function(id) {
+	set: function(id, value) {
+		if (id == 'timezone') {
+			let z = null;
+			for (let e in ZONES) if (e[0] == value) z = e;
+			let sec = system_section();
+			if (!z || !sec) return 'unknown time zone';
+			let c = ctx.uci();
+			c.set('system', sec, 'zonename', z[0]);
+			c.set('system', sec, 'timezone', z[1]);
+			c.commit('system');
+			// /etc/TZ for the system; the screen's WebKit reads TZ at its start
+			ctx.run('/etc/init.d/system reload >/dev/null 2>&1');
+			ctx.run('(sleep 2; /etc/init.d/e5-infoscreen restart) >/dev/null 2>&1 &');
+			return null;
+		}
+		if (id == 'clock_seconds') {
+			let c = ctx.uci();
+			c.set('e5-infoscreen', 'main', 'clock_seconds', value ? '1' : '0');
+			c.commit('e5-infoscreen');
+			return null;
+		}
 		if (id == 'reboot') { ctx.run('(sleep 2; reboot) >/dev/null 2>&1 &'); return null; }
 		if (id == 'debian_once') { ctx.run('(e5-os debian --once && sleep 2 && reboot) >/dev/null 2>&1 &'); return null; }
 		if (id == 'android_once') { ctx.run('(e5-next-boot android && sleep 2 && reboot) >/dev/null 2>&1 &'); return null; }

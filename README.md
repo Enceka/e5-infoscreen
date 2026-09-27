@@ -16,7 +16,7 @@ device at a glance, and is driven by touch and by the keypad.
 | Hotspot | SSID, a QR code to join, the passphrase on request, on/off, the clients (Wi-Fi and USB) |
 | Device | battery, uptime, time online, load, memory, LAN/IPv4/IPv6 addresses, brightness, reconnect |
 | Details (高级信息) | device (system, image, kernel, storage, temperature, battery voltage); baseband (model, firmware, 5G SA, modes); band locks (LTE, NR) and cell locks, decoded from `AT+SPLBAND` / `AT+SPFORCEFRQ`; SIM (active slot, operator, registration); the identifiers on request |
-| Settings (高级) | by function: **network** (APN switch, 5G SA, LTE/NR band lock, default bands, cell lock, reconnect), **devices** (block internet, kick off Wi-Fi), **charging** (limit, resume level, charge to full once -- e5-linux's `e5-charge`), **notifications** (SMS vibration, light up), **screen** (brightness, screen-off time, language), **system** (reboot, boot Debian or Android once), and each plugin's settings |
+| Settings (高级) | by function: **network** (APN switch, 5G SA, LTE/NR band lock, default bands, cell lock, reconnect), **devices** (block internet, kick off Wi-Fi), **charging** (limit, resume level, charge to full once -- e5-linux's `e5-charge`), **notifications** (SMS vibration, light up), **screen** (brightness, screen-off time, language), **system** (time zone, clock with seconds, reboot, boot Debian or Android once), and each plugin's settings |
 | Apps | the installed plugins; two come with it, a calculator and a network test |
 
 The status bar carries the operator, the technology, signal bars, the battery

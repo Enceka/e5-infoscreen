@@ -200,7 +200,7 @@ function renderBar(st) {
 	bat.classList.toggle('low', cap <= 15 && b.status != 'Charging');
 	bat.classList.toggle('charging', b.status == 'Charging');
 	setText('bar-batpct', b.capacity == null ? '--' : cap + '%');
-	setText('bar-clock', st.clock);
+	tickClock();
 	const n_sms = st.sms?.unread?.length ?? 0;
 	setText('bar-sms', n_sms ? '✉ ' + n_sms : '');
 }
@@ -298,6 +298,16 @@ function render(st) {
 	renderHotspot(st);
 	renderDevice(st);
 }
+
+/* ---------- clock ---------- */
+
+// the status bar's clock ticks here, every second: the page has the device's
+// time zone (the session passes TZ) and the time is NTP's
+function tickClock() {
+	const d = new Date(), p2 = (n) => String(n).padStart(2, '0');
+	setText('bar-clock', `${p2(d.getHours())}:${p2(d.getMinutes())}` + (last?.screen?.clock_seconds ? `:${p2(d.getSeconds())}` : ''));
+}
+setInterval(() => { if (!blank) tickClock(); }, 1000);
 
 /* ---------- data ---------- */
 
@@ -871,6 +881,10 @@ async function stPost(v, body) {
 		if (i >= 0) v.items[i] = r.item;
 	}
 	if (r?.ok && v.cat.id == 'screen') stScreenApplied(body.id, r.item?.value ?? body.value);
+	if (r?.ok && v.cat.id == 'system' && body.id == 'clock_seconds' && last) {
+		last.screen.clock_seconds = !!body.value;
+		tickClock();
+	}
 	return r;
 }
 

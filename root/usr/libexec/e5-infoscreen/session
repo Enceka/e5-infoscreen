@@ -4,6 +4,10 @@ export XDG_RUNTIME_DIR=/tmp/run/e5-infoscreen
 mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
 export LIBSEAT_BACKEND=seatd
 export XKB_DEFAULT_LAYOUT=us
+# the page formats times itself: WebKit needs the device's time zone (OpenWrt
+# keeps it in /etc/TZ, a POSIX TZ string, written from uci system.timezone)
+TZ=$(cat /etc/TZ 2>/dev/null)
+export TZ=${TZ:-UTC0}
 export HOME=/tmp/run/e5-infoscreen
 
 # seatd and the api instance start next to this one
