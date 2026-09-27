@@ -101,9 +101,12 @@ html, body {
 .bad { color: var(--poor); }
 
 /* overview */
-.rates { display: flex; flex-direction: column; gap: 2px; }
-.rate { display: flex; align-items: baseline; gap: 6px; }
-.rate .arrow { color: var(--good); font-size: 22px; width: 18px; }
+/* download and upload side by side, the traffic since boot under both */
+.rates { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; }
+.rates .sub { grid-column: 1 / -1; }
+.rate { display: flex; align-items: baseline; gap: 3px; min-width: 0; white-space: nowrap; }
+.rate .big { font-size: 27px; }
+.rate .arrow { color: var(--good); font-size: 19px; width: 14px; }
 .rate .arrow.up { color: var(--accent); }
 .big { font-size: 34px; font-weight: bold; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .unit { color: var(--dim); font-size: 14px; }

@@ -69,7 +69,8 @@ for version 1 of all three.
              "cell": { "type": "5gnr", "serving": true, "pci": 169, "arfcn": 504990,
                        "band": "n41", "rsrp": -97.3, "rsrq": -12.3, "sinr": 4.6,
                        "bandwidth_mhz": 100 },
-             "neighbours": 5 },
+             "neighbours": 5,
+             "qos": { "qci": 9, "dl_kbps": 1000000, "ul_kbps": 100000, "nr": true } },
   "wan": { "up": true, "uptime": 1519, "ipv4": "10.1.2.3", "ipv6": "240a:...",
            "ipv6_prefix": "240a:.../64", "dns": [ "..." ] },
   "traffic": { "rx_total": 101641661, "tx_total": 47712286, "rx_rate": 1204.5, "tx_rate": 88.0 },
@@ -87,7 +88,10 @@ Rates are bytes per second over the time since the previous poll (`null` on
 the first).  `battery.limit` is the charge limit when one is on (e5-linux's
 `e5-charge`), `paused` whether it has stopped charging -- the gauge's own
 `status` then reads `Full` or `Not charging`.  `system.disk_*` is the root
-filesystem (`df /`, cached 60 s).  The modem part is cached for 10 s.
+filesystem (`df /`, cached 60 s).  The modem part is cached for 10 s.  `modem.qos` is the
+subscribed rate: the aggregate maximum bit rate the network grants the data
+context (cid 1), in kbit/s, with its QCI (LTE, `AT+CGEQOSRDP=1`) or 5QI (`nr`,
+`AT+C5GQOSRDP=1`); cached 60 s, `null` without a bearer.
 
 ## 3. Settings items
 

@@ -1016,15 +1016,34 @@ function sms_config() {
 	return { screen: c.get('e5-notify', 'sms', 'screen') != '0' };
 }
 
+// the subscribed rate: what the network grants the data context (cid 1, the
+// one ModemManager connects), its aggregate maximum bit rate in kbit/s --
+// +CGEQOSRDP on LTE (QCI, GBR, MBR, APN-AMBR), +C5GQOSRDP on 5G (5QI, GFBR,
+// MFBR, session AMBR).  Cached a minute: it changes with the bearer only.
+function qos_status(m) {
+	if (!m?.present)
+		return null;
+	let c = state_get('qos', 60);
+	if (c)
+		return c.v;
+	let nr = (m.tech == '5gnr');
+	let f = payload_ints(at(nr ? 'AT+C5GQOSRDP=1' : 'AT+CGEQOSRDP=1', 5));
+	let v = (length(f) >= 8 && f[0] == 1 && (f[6] > 0 || f[7] > 0))
+		? { qci: f[1], dl_kbps: f[6], ul_kbps: f[7], nr } : null;
+	state_put('qos', { v });
+	return v;
+}
+
 function status() {
 	let lt = localtime(), t = time();
+	let m = modem_status();
 	return {
 		time: t,
 		// the device's offset from UTC in seconds: the page formats its times
 		// with it (WebKit has no zoneinfo here and would use UTC)
 		tz_offset: timegm(lt) - t,
 		clock: sprintf('%02d:%02d', lt.hour, lt.min),
-		modem: modem_status(),
+		modem: { ...m, qos: qos_status(m) },
 		wan: wan_status(),
 		traffic: traffic(),
 		wifi: wifi_status(),
