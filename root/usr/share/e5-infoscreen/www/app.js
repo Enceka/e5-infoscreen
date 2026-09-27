@@ -18,7 +18,8 @@ const I18N = {
 		online: '在线', offline: '离线', blocked: '已禁止上网', block: '禁止上网', unblock: '允许上网',
 		kick: '踢下 Wi-Fi', kicked: '已踢下线', mac: 'MAC', via: '连接', no_devices: '没有设备',
 		loading: '读取中…', app_settings: '应用设置', current_voltage: '电流 / 电压',
-		charge_paused: '已暂停充电', limit: '上限', wan: '外网', lan: '内网', system: '系统', image: '镜像版本', kernel: '内核',
+		charge_paused: '已暂停充电', limit: '上限', wan: '外网', lan: '内网',
+		at_running: '执行中…', at_again: '再执行一次', at_note: '任意指令可通过 SSH 的 e5-at 或插件的 /api/at 发送', system: '系统', image: '镜像版本', kernel: '内核',
 		storage: '存储', temperature: '温度', baseband: '基带', modes: '网络模式',
 		locks: '锁定', lte_bands: 'LTE 频段', nr_bands: 'NR 频段', cell_lock: '锁小区',
 		not_locked: '未锁定', slot: '卡槽', operator: '运营商', registration: '注册',
@@ -49,7 +50,8 @@ const I18N = {
 		online: 'Online', offline: 'Offline', blocked: 'Blocked', block: 'Block internet', unblock: 'Allow internet',
 		kick: 'Kick off Wi-Fi', kicked: 'Kicked', mac: 'MAC', via: 'Via', no_devices: 'No devices',
 		loading: 'Loading…', app_settings: 'App settings', current_voltage: 'Current / voltage',
-		charge_paused: 'Charging paused', limit: 'limit', wan: 'WAN', lan: 'LAN', system: 'System', image: 'Image', kernel: 'Kernel',
+		charge_paused: 'Charging paused', limit: 'limit', wan: 'WAN', lan: 'LAN',
+		at_running: 'Running…', at_again: 'Run again', at_note: 'Any command: e5-at over SSH, or /api/at from a plugin', system: 'System', image: 'Image', kernel: 'Kernel',
 		storage: 'Storage', temperature: 'Temperature', baseband: 'Baseband', modes: 'Modes',
 		locks: 'Locks', lte_bands: 'LTE bands', nr_bands: 'NR bands', cell_lock: 'Cell lock',
 		not_locked: 'Not locked', slot: 'Slot', operator: 'Operator', registration: 'Registration',
@@ -870,7 +872,7 @@ function stRow(key, label, value, opts = {}) {
 function stRender() {
 	const v = stTop();
 	if (!v) return;
-	const path = st.map((x) => x.view == 'menu' ? t('settings') : x.view == 'appcats' ? t('app_settings') : x.cat ? lbl(x.cat.label) : x.item ? lbl(x.item.label) : x.dev ? (x.dev.name ?? x.dev.ip ?? x.dev.mac) : '').join(' › ');
+	const path = st.map((x) => x.view == 'menu' ? t('settings') : x.view == 'appcats' ? t('app_settings') : x.view == 'atres' ? x.cmd : x.cat ? lbl(x.cat.label) : x.item ? lbl(x.item.label) : x.dev ? (x.dev.name ?? x.dev.ip ?? x.dev.mac) : '').join(' › ');
 	setText('st-path', path);
 	let html = '';
 	if (v.view == 'menu') {
@@ -900,6 +902,14 @@ function stRender() {
 				`<button class="strow" data-st="multi:apply"><span>${esc(t('apply'))}</span><span class="sv">${esc(v.draft.length ? '' : t('not_locked'))}</span></button>`;
 		}
 		if (it.note) html += `<div class="stnote">${esc(lbl(it.note))}</div>`;
+	} else if (v.view == 'at') {
+		html = v.presets == null ? `<div class="sub">${esc(t('loading'))}</div>` :
+			v.presets.map((p, i) => stRow('atp:' + i, lbl(p.label), p.cmd)).join('') +
+			`<div class="stnote">${esc(t('at_note'))}</div>`;
+	} else if (v.view == 'atres') {
+		html = `<div class="card"><div class="sub">${esc(v.cmd)}</div>` +
+			`<div class="smstext" style="margin-top:6px;font-size:13px">${esc(v.reply ?? t('at_running'))}</div></div>` +
+			stRow('atagain:', t('at_again'), '');
 	} else if (v.view == 'devices') {
 		html = v.list == null ? `<div class="sub">${esc(t('loading'))}</div>` : v.list.length ?
 			v.list.map((d, i) => stRow('dev:' + i, d.name ?? d.ip ?? d.mac,
@@ -967,8 +977,29 @@ async function stClick(key, el) {
 		stRender();
 		return;
 	}
+	if (k == 'atp' || k == 'atagain') {
+		const cmd = k == 'atp' ? v.presets[+arg].cmd : v.cmd;
+		const nv = k == 'atp' ? { view: 'atres', cmd, reply: null } : v;
+		if (k == 'atp') st.push(nv);
+		nv.reply = null;
+		stRender();
+		const r = await fetch('/api/at', {
+			method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd })
+		}).then((r) => r.json()).catch(() => null);
+		nv.reply = r?.ok ? (r.reply || 'OK') : `${t('failed')}: ${r?.error ?? ''}`;
+		if (stTop() === nv) stRender();
+		return;
+	}
 	if (k == 'cat') {
 		const c = stCats[+arg];
+		if (c.view == 'at') {
+			const nv = { view: 'at', cat: c, presets: null };
+			st.push(nv); stRender();
+			const r = await fetch('/api/at/presets', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+			nv.presets = r?.presets ?? [];
+			if (stTop() === nv) stRender();
+			return;
+		}
 		if (c.view == 'devices') {
 			const nv = { view: 'devices', cat: c, list: null };
 			st.push(nv); stRender();

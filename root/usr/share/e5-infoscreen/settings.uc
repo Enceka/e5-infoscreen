@@ -440,7 +440,9 @@ const system_cat = {
 };
 
 // (the devices category is its own view: /api/devices)
-return [ network, { id: 'devices', label: L('设备管理', 'Devices'), view: 'devices' },
+// (the AT page is its own view as well: /api/at, /api/at/presets)
+return [ network, { id: 'at', label: L('AT 指令', 'AT commands'), view: 'at' },
+         { id: 'devices', label: L('设备管理', 'Devices'), view: 'devices' },
          charge, notify, screen, system_cat ];
 
 };

@@ -40,6 +40,8 @@
 | `POST /wan-reconnect` | 重新建立移动网络连接 |
 | `GET /advanced` | 设备、基带、锁定、SIM 的详细信息（“高级信息”页） |
 | `GET /identity` | `{ imei, iccid, imsi, numbers[] }` |
+| `POST /at` | `{ cmd, timeout }`，返回 `{ ok, reply }` 或 `{ ok: false, error }`：通过 ModemManager（AT 通道唯一的所有者）发一条 AT 指令，`timeout` 为 1-60 秒（默认 10）。任何一个以 `;` 分隔的部分含有以下指令都会被拒绝：`ATZ`、`AT&F`、`+CPMS=`、`+CFUN=0`、`+SFUN=3`/`5`（执行后 CP 的 AT 服务或 SIM 卡直到重启都不可用）以及写 IMEI（`+SPIMEI=`、`+EGMR=1`），与 e5-linux 的 `e5-at` 规则相同。这是原始的指令通道，回复里可能含有识别码。 |
+| `GET /at/presets` | `{ presets: [ { cmd, label } ] }`，即“高级 → AT 指令”页的只读指令 |
 | `GET /settings` | `{ categories: [ { id, label, view, plugin } ] }` |
 | `GET /settings/<分类>` | `{ id, label, items[] }`（见第 3 节） |
 | `POST /settings/<分类>` | `{ id, value }`（动作只传 `{ id }`），返回 `{ ok, error, item }`，item 为修改后读回的值 |
@@ -190,7 +192,8 @@ return function(ctx) {
 | `ctx.sh(cmd)` | 运行 shell 命令，返回输出（字符串）或 `null`。不要未经转义就用 `req` 拼接 `cmd`：`req` 是数据。 |
 | `ctx.sh_json(cmd)` | 同上，结果按 JSON 解析（不是 JSON 时为 `null`） |
 | `ctx.run(cmd)` | 运行命令，返回退出状态 |
-| `ctx.at(cmd)` | 通过 ModemManager 发 AT 指令（AT 通道只有一个所有者），返回不含 `OK` 的回复或 `null`。写 IMEI、写 NV 的指令不供插件使用。 |
+| `ctx.at(cmd, timeout)` | 通过 ModemManager 发 AT 指令（AT 通道只有一个所有者），返回不含 `OK` 的回复或 `null`；被拒绝的指令（规则同 `/at`）也返回 `null` |
+| `ctx.at_console(cmd, timeout)` | 同 `POST /at`：`{ ok, reply }` 或 `{ ok: false, error }` |
 | `ctx.modem()` | `/status` 中的 `modem` 部分 |
 | `ctx.cells()` | 服务小区和邻区，`[ { type, serving, pci, arfcn, band, rsrp, rsrq, sinr, bandwidth_mhz } ]` |
 | `ctx.ubus(对象, 方法, 参数)` | ubus 调用，返回回复或 `null` |

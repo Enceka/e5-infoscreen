@@ -14,6 +14,8 @@
 //   POST /api/sms-read       the messages have been seen (e5-sms-notify read)
 //   POST /api/sms-delete     {"id": N}
 //   GET  /api/traffic        today's, this month's and the last days' traffic (vnstat)
+//   POST /api/at             {"cmd": "AT+...", "timeout": s} -> {ok, reply|error}
+//   GET  /api/at/presets     the screen's list of AT reads
 //   GET  /api/advanced       device, baseband and SIM details, band and cell locks
 //   GET  /api/identity       IMEI, ICCID, IMSI, own number -- when the page asks
 //   POST /api/wifi           {"on": true|false}
@@ -550,12 +552,71 @@ function traffic_usage() {
 /* ---------- advanced ---------- */
 
 // an AT command through ModemManager (the AT channel has one owner); the
-// reply without the final OK, or null
-function at(cmd) {
-	let out = sh(`mmcli -m any --timeout=10 --command='${cmd}' 2>/dev/null`);
-	let m = out ? match(out, /response: '([^']*)'/s) : null;
+// reply without the final OK, or null.  The command is single-quoted for the
+// shell: a ' in it cannot end the quoting.
+function at(cmd, timeout) {
+	let q = replace(`${cmd}`, /'/g, "'\\''");
+	let t = int(timeout ?? 10);
+	if (t < 1 || t > 60) t = 10;
+	let out = sh(`mmcli -m any --timeout=${t} --command='${q}' 2>&1`);
+	let m = out ? match(out, /response: '(.*)'\s*$/s) : null;
 	return m ? trim(m[1]) : null;
 }
+
+// the commands no one may send, e5-at's list (e5-linux rootfs/overlay/opt/e5/
+// e5-at): after them the CP's AT server answers nobody or the SIM is not seen
+// until a reboot; and writing the IMEI.  Every ;-separated part is checked.
+function at_refused(cmd) {
+	let s = uc(replace(`${cmd}`, /\s+/g, ''));
+	if (substr(s, 0, 2) != 'AT')
+		return 'not an AT command';
+	if (match(s, /[\r\n]/))
+		return 'one command, one line';
+	for (let part in split(substr(s, 2), ';')) {
+		part = replace(part, /^AT/, '');
+		if (match(part, /^(Z|&F|\+CPMS=|\+CFUN=0|\+SFUN=3|\+SFUN=5)/))
+			return "it leaves the modem's AT server or SIM dead until a reboot";
+		if (match(part, /^(\+SPIMEI=|\+EGMR=1)/))
+			return 'it writes the IMEI';
+	}
+	return null;
+}
+
+// /api/at: the reply, or the modem's error text
+function at_console(cmd, timeout) {
+	let why = at_refused(cmd);
+	if (why)
+		return { ok: false, error: `refused: ${why}` };
+	let q = replace(`${cmd}`, /'/g, "'\\''");
+	let t = int(timeout ?? 10);
+	if (t < 1 || t > 60) t = 10;
+	let out = sh(`mmcli -m any --timeout=${t} --command='${q}' 2>&1`) ?? '';
+	let m = match(out, /response: '(.*)'\s*$/s);
+	if (m)
+		return { ok: true, reply: trim(m[1]) };
+	let e = match(out, /error: (.*)$/s);
+	return { ok: false, error: trim(e ? e[1] : out) };
+}
+
+// useful reads for the screen's AT page; nothing here changes the modem
+const AT_PRESETS = [
+	[ 'AT+CSQ', '信号质量', 'Signal quality' ],
+	[ 'AT+CESQ', '扩展信号质量', 'Extended signal' ],
+	[ 'AT+COPS?', '运营商', 'Operator' ],
+	[ 'AT+CEREG?', '4G 注册状态', 'LTE registration' ],
+	[ 'AT+C5GREG?', '5G 注册状态', '5G registration' ],
+	[ 'AT+CIREG?', 'IMS 注册状态', 'IMS registration' ],
+	[ 'AT+CGDCONT?', 'PDP 上下文', 'PDP contexts' ],
+	[ 'AT+CGCONTRDP=1', '连接参数', 'Connection parameters' ],
+	[ 'AT+SPTESTMODE?', '网络模式', 'Network mode' ],
+	[ 'AT+SP5GRAN?', '5G 组网', '5G access' ],
+	[ 'AT+SPLBAND=0', 'LTE 频段锁定', 'LTE band lock' ],
+	[ 'AT+SPLBAND=3', 'NR 频段锁定', 'NR band lock' ],
+	[ 'AT+SPFORCEFRQ=16,3', 'NR 锁小区', 'NR cell lock' ],
+	[ 'AT+SPFORCEFRQ=12,3', 'LTE 锁小区', 'LTE cell lock' ],
+	[ 'AT+SPACTCARD?', '当前卡', 'Active card' ],
+	[ 'AT+CGMR', '基带固件', 'Baseband firmware' ]
+];
 
 function payload_ints(line) {
 	let body = line ?? '';
@@ -720,7 +781,10 @@ function make_ctx(ns) {
 	let pre = ns ? `plugin-${ns}-` : '';
 	return {
 		api_version: API_VERSION,
-		sh, sh_json, at, read_trim, read_num, payload_ints,
+		sh, sh_json, read_trim, read_num, payload_ints,
+		// a plugin's AT commands go through the same refusals as /api/at
+		at: ns ? (cmd, t) => (at_refused(cmd) ? null : at(cmd, t)) : at,
+		at_console,
 		ubus: ubus_call,
 		uci: () => cursor(),
 		run: (cmd) => system(cmd),
@@ -1051,6 +1115,12 @@ global.handle_request = function(env) {
 		let pm = match(path, /^\/plugins\/([^\/]+)(\/.*)?$/);
 		if (pm)
 			return plugin_request(env, pm[1], pm[2] ?? '', post ? read_body(env) : null);
+		if (post && path == '/at') {
+			let b = read_body(env);
+			return reply_json(200, at_console(b.cmd ?? '', b.timeout));
+		}
+		if (!post && path == '/at/presets')
+			return reply_json(200, { presets: map(AT_PRESETS, (p) => ({ cmd: p[0], label: { zh: p[1], en: p[2] } })) });
 		if (!post && path == '/traffic')
 			return reply_json(200, traffic_usage());
 		if (!post && path == '/advanced')
