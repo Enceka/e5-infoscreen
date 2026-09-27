@@ -516,6 +516,8 @@ function traffic_usage() {
 		push(days, { date: sprintf('%02d-%02d', e.date.month, e.date.day), rx: e.rx, tx: e.tx });
 	return {
 		available: true,
+		// when counting began: a month (or a day) that started earlier is partial
+		since: v.interfaces[0].created?.timestamp,
 		today: pick(tr.day, (d) => d.year == lt.year && d.month == lt.mon && d.day == lt.mday),
 		month: pick(tr.month, (d) => d.year == lt.year && d.month == lt.mon),
 		total: { rx: tr.total?.rx ?? 0, tx: tr.total?.tx ?? 0 },

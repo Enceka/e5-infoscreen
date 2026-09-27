@@ -12,7 +12,7 @@ const I18N = {
 		back: '返回', delete: '删除', delete_confirm: '再按一次删除', deleted: '已删除',
 		no_sms: '没有短信', unknown_sender: '未知号码', new_sms: '新短信',
 		advanced: '高级', adv_info: '高级信息', model: '型号',
-		traffic: '流量', today: '今日', this_month: '本月', last_days: '最近 7 天',
+		traffic: '流量', today: '今日', this_month: '本月', last_days: '最近 7 天', counting_since: '开始统计于',
 		settings: '高级', apps: '应用', no_apps: '没有安装应用', press_again: '再按一次确认',
 		apply: '应用', clear: '全部取消', save: '保存', saved: '已保存', failed: '失败',
 		online: '在线', offline: '离线', blocked: '已禁止上网', block: '禁止上网', unblock: '允许上网',
@@ -42,7 +42,7 @@ const I18N = {
 		back: 'Back', delete: 'Delete', delete_confirm: 'Press again to delete', deleted: 'Deleted',
 		no_sms: 'No messages', unknown_sender: 'Unknown', new_sms: 'New message',
 		advanced: 'Advanced', adv_info: 'Details', model: 'Model',
-		traffic: 'Traffic', today: 'Today', this_month: 'This month', last_days: 'Last 7 days',
+		traffic: 'Traffic', today: 'Today', this_month: 'This month', last_days: 'Last 7 days', counting_since: 'Counting since',
 		settings: 'Settings', apps: 'Apps', no_apps: 'No apps installed', press_again: 'Press again',
 		apply: 'Apply', clear: 'Clear all', save: 'Save', saved: 'Saved', failed: 'Failed',
 		online: 'Online', offline: 'Offline', blocked: 'Blocked', block: 'Block internet', unblock: 'Allow internet',
@@ -656,6 +656,14 @@ async function loadTraffic() {
 	if (!u || !u.available) return;
 	setText('tf-day-rx', b(u.today.rx)); setText('tf-day-tx', b(u.today.tx));
 	setText('tf-mon-rx', b(u.month.rx)); setText('tf-mon-tx', b(u.month.tx));
+	// counting began inside this month (or today): say so, the total is partial
+	const since = u.since ? new Date(u.since * 1000) : null, nowd = new Date();
+	const p2 = (n) => String(n).padStart(2, '0');
+	const sinceText = since ? `${t('counting_since')} ${p2(since.getMonth() + 1)}-${p2(since.getDate())} ${p2(since.getHours())}:${p2(since.getMinutes())}` : '';
+	const sameMonth = since && since.getFullYear() == nowd.getFullYear() && since.getMonth() == nowd.getMonth();
+	const sameDay = sameMonth && since.getDate() == nowd.getDate();
+	setText('tf-mon-since', sameMonth ? sinceText : '');
+	setText('tf-day-since', sameDay ? sinceText : '');
 	const max = Math.max(1, ...u.days.map((d) => d.rx + d.tx));
 	setHTML('tf-days', u.days.length ? u.days.slice().reverse().map((d) =>
 		`<div class="day"><span>${esc(d.date)}</span><span class="bar">` +

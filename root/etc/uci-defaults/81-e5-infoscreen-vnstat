@@ -6,6 +6,8 @@
 [ -f /etc/vnstat.conf ] || exit 0
 mkdir -p /etc/vnstat
 sed -i 's|^;*DatabaseDir .*|DatabaseDir "/etc/vnstat"|' /etc/vnstat.conf
+# written every minute, not every 5: the page's today and month are the database's
+sed -i 's|^;*SaveInterval .*|SaveInterval 1|' /etc/vnstat.conf
 uci -q get vnstat.@vnstat[0] >/dev/null || uci -q add vnstat vnstat >/dev/null
 uci -q del_list vnstat.@vnstat[0].interface=sipa_eth0
 uci add_list vnstat.@vnstat[0].interface=sipa_eth0
