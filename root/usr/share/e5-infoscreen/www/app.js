@@ -11,7 +11,13 @@ const I18N = {
 		overview: '概览', signal: '信号', sms: '短信', hotspot: '热点', device: '设备',
 		back: '返回', delete: '删除', delete_confirm: '再按一次删除', deleted: '已删除',
 		no_sms: '没有短信', unknown_sender: '未知号码', new_sms: '新短信',
-		advanced: '高级', model: '型号', system: '系统', image: '镜像版本', kernel: '内核',
+		advanced: '高级', adv_info: '高级信息', model: '型号',
+		traffic: '流量', today: '今日', this_month: '本月', last_days: '最近 7 天',
+		settings: '高级', apps: '应用', no_apps: '没有安装应用', press_again: '再按一次确认',
+		apply: '应用', clear: '全部取消', save: '保存', saved: '已保存', failed: '失败',
+		online: '在线', offline: '离线', blocked: '已禁止上网', block: '禁止上网', unblock: '允许上网',
+		kick: '踢下 Wi-Fi', kicked: '已踢下线', mac: 'MAC', via: '连接', no_devices: '没有设备',
+		loading: '读取中…', system: '系统', image: '镜像版本', kernel: '内核',
 		storage: '存储', temperature: '温度', baseband: '基带', modes: '网络模式',
 		locks: '锁定', lte_bands: 'LTE 频段', nr_bands: 'NR 频段', cell_lock: '锁小区',
 		not_locked: '未锁定', slot: '卡槽', operator: '运营商', registration: '注册',
@@ -35,7 +41,13 @@ const I18N = {
 		overview: 'Overview', signal: 'Signal', sms: 'Messages', hotspot: 'Hotspot', device: 'Device',
 		back: 'Back', delete: 'Delete', delete_confirm: 'Press again to delete', deleted: 'Deleted',
 		no_sms: 'No messages', unknown_sender: 'Unknown', new_sms: 'New message',
-		advanced: 'Advanced', model: 'Model', system: 'System', image: 'Image', kernel: 'Kernel',
+		advanced: 'Advanced', adv_info: 'Details', model: 'Model',
+		traffic: 'Traffic', today: 'Today', this_month: 'This month', last_days: 'Last 7 days',
+		settings: 'Settings', apps: 'Apps', no_apps: 'No apps installed', press_again: 'Press again',
+		apply: 'Apply', clear: 'Clear all', save: 'Save', saved: 'Saved', failed: 'Failed',
+		online: 'Online', offline: 'Offline', blocked: 'Blocked', block: 'Block internet', unblock: 'Allow internet',
+		kick: 'Kick off Wi-Fi', kicked: 'Kicked', mac: 'MAC', via: 'Via', no_devices: 'No devices',
+		loading: 'Loading…', system: 'System', image: 'Image', kernel: 'Kernel',
 		storage: 'Storage', temperature: 'Temperature', baseband: 'Baseband', modes: 'Modes',
 		locks: 'Locks', lte_bands: 'LTE bands', nr_bands: 'NR bands', cell_lock: 'Cell lock',
 		not_locked: 'Not locked', slot: 'Slot', operator: 'Operator', registration: 'Registration',
@@ -78,7 +90,7 @@ let smsUnread = null;      // the unread ids at the last poll
 let smsArmed = null;       // the delete button's second-press timer
 
 // the pages, in order (the digit keys count from 1)
-const P = { overview: 0, signal: 1, sms: 2, hotspot: 3, device: 4, advanced: 5 };
+const P = { overview: 0, signal: 1, traffic: 2, sms: 3, hotspot: 4, device: 5, adv_info: 6, settings: 7, apps: 8 };
 let adv = null;            // the last /api/advanced
 let advTimer = null;
 let showIds = false;
@@ -345,7 +357,7 @@ function setBlank(on) {
 function resetIdle() {
 	clearTimeout(idleTimer);
 	const idle = last?.screen?.idle ?? 60;
-	if (!blank && idle > 0)
+	if (!blank && idle > 0 && !(appOpen && appKeepAwake))
 		idleTimer = setTimeout(() => setBlank(true), idle * 1000);
 }
 
@@ -365,12 +377,17 @@ function showPage(n) {
 		closeSms();
 	}
 	clearInterval(advTimer);
-	if (page == P.advanced) {
+	if (page == P.traffic) {
+		loadTraffic();
+		advTimer = setInterval(() => { if (!blank) loadTraffic(); }, 30000);
+	} else if (page == P.adv_info) {
 		loadAdvanced();
 		advTimer = setInterval(() => { if (!blank) loadAdvanced(); }, 30000);
 	} else if (showIds) {
 		hideIds();
 	}
+	if (page == P.settings) stOpen();
+	if (page == P.apps) loadApps();
 }
 
 function focusables() {
@@ -412,9 +429,13 @@ function keyKind(e) {
 	if (k == 'Enter' || k == 'Select' || k == 'Accept' || c == 13) return 'ok';
 	if (k == 'BrowserBack' || k == 'GoBack' || k == 'Backspace' || k == 'Escape' || c == 8 || c == 27 || c == 166) return 'back';
 	if (k == 'Power' || k == 'PowerOff' || k == 'Standby' || k == 'Sleep') return 'power';
-	if (k >= '1' && k <= '6' && k.length == 1) return 'page' + k;
+	if (k >= '1' && k <= '9' && k.length == 1) return 'page' + k;
 	return null;
 }
+
+// the keypad's back key reports KEY_BACK and BackSpace (kernel 0004) in one
+// press: the second of the two, within 150 ms, is the same press
+let lastBack = 0;
 
 document.addEventListener('keydown', (e) => {
 	if (keyLogged < KEY_LOG_MAX) {
@@ -422,12 +443,25 @@ document.addEventListener('keydown', (e) => {
 		post('key', { key: e.key, code: e.code, keyCode: e.keyCode, repeat: e.repeat });
 	}
 	const kind = keyKind(e);
+	if (kind == 'back') {
+		const now = performance.now();
+		if (now - lastBack < 150) {
+			e.preventDefault();
+			return;
+		}
+		lastBack = now;
+	}
 	e.preventDefault();
 	if (blank) {
 		setBlank(false);
 		return;
 	}
 	resetIdle();
+	if (appOpen) {                       // (the plugin's frame lost the focus)
+		$('app-frame').focus();
+		return;
+	}
+	if (page == P.settings && stKey(kind)) return;
 	switch (kind) {
 	case 'left': showPage(page - 1); break;
 	case 'right': showPage(page + 1); break;
@@ -604,6 +638,33 @@ on('sv-delete', 'click', async () => {
 	loadSms();
 });
 
+/* ---------- traffic ---------- */
+
+async function loadTraffic() {
+	let u = null;
+	try {
+		const r = await fetch('/api/traffic', { cache: 'no-store' });
+		if (r.ok) u = await r.json();
+	} catch (e) {
+		console.log('traffic: ' + e);
+	}
+	const b = (n) => { const [v, unit] = fmtBytes(n); return `${v} ${unit}`; };
+	if (last) {
+		setText('tf-boot-rx', b(last.traffic.rx_total));
+		setText('tf-boot-tx', b(last.traffic.tx_total));
+	}
+	if (!u || !u.available) return;
+	setText('tf-day-rx', b(u.today.rx)); setText('tf-day-tx', b(u.today.tx));
+	setText('tf-mon-rx', b(u.month.rx)); setText('tf-mon-tx', b(u.month.tx));
+	const max = Math.max(1, ...u.days.map((d) => d.rx + d.tx));
+	setHTML('tf-days', u.days.length ? u.days.slice().reverse().map((d) =>
+		`<div class="day"><span>${esc(d.date)}</span><span class="bar">` +
+		`<i class="rx" style="width:${(d.rx / max * 100).toFixed(1)}%"></i>` +
+		`<i class="tx" style="width:${(d.tx / max * 100).toFixed(1)}%"></i></span>` +
+		`<span class="sum">${esc(b(d.rx + d.tx))}</span></div>`).join('')
+		: `<div class="sub">${esc(t('none'))}</div>`);
+}
+
 /* ---------- advanced ---------- */
 
 const REG_WORD = { home: 'home', roaming: 'roaming_reg', idle: 'idle_reg', denied: 'denied', searching: 'searching' };
@@ -667,6 +728,336 @@ on('ad-showids', 'click', async () => {
 	setText('id-num', r.numbers?.length ? r.numbers.join(', ') : '--');
 	$('ad-ids').hidden = false;
 	$('ad-showids').textContent = t('hide_ids');
+});
+
+/* ---------- settings ("高级") ---------- */
+
+// a stack of views: menu -> category -> edit (choice / number / multi),
+// menu -> devices -> device
+let st = [];
+let stCats = null;
+let stArmed = null;               // { key, timer }: the row waiting for its second press
+const lbl = (l) => (l && typeof l == 'object') ? (l[lang] ?? l.zh ?? '') : (l ?? '');
+
+function stTop() { return st[st.length - 1]; }
+
+async function stOpen() {
+	if (!st.length) st = [{ view: 'menu' }];
+	stRender();
+	if (!stCats) {
+		const r = await fetch('/api/settings', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+		stCats = r?.categories ?? [];
+		stRender();
+	}
+}
+
+async function stLoadCat(v) {
+	const r = await fetch('/api/settings/' + encodeURIComponent(v.cat.id), { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+	v.items = r?.items ?? [];
+	if (stTop() === v) stRender();
+}
+
+function stDisarm() {
+	if (stArmed) clearTimeout(stArmed.timer);
+	stArmed = null;
+}
+
+// true when this press was the second one
+function stConfirm(key, el) {
+	if (stArmed && stArmed.key == key) {
+		stDisarm();
+		return true;
+	}
+	stDisarm();
+	stArmed = { key, timer: setTimeout(() => { stDisarm(); stRender(); }, 3000) };
+	if (el) {
+		el.classList.add('armed');
+		const sv = el.querySelector('.sv');
+		if (sv) sv.textContent = t('press_again');
+	}
+	return false;
+}
+
+function stValue(it) {
+	if (it.type == 'toggle') return it.value == null ? '--' : it.value ? t('on') : t('off');
+	if (it.type == 'choice') {
+		const o = (it.options ?? []).find((o) => String(o.value) == String(it.value));
+		return o ? lbl(o.label) : (it.value ?? '--');
+	}
+	if (it.type == 'number') return it.value == null ? '--' : `${it.value}${it.unit ?? ''}`;
+	if (it.type == 'multi') {
+		if (!it.value?.length) return lbl(it.none_label) || t('not_locked');
+		return it.value.map((v) => lbl((it.options ?? []).find((o) => o.value == v)?.label) || v).join(' ');
+	}
+	if (it.type == 'info') return String(it.value ?? '--');
+	return '';
+}
+
+function stRow(key, label, value, opts = {}) {
+	const tag = opts.info ? 'div' : 'button';
+	return `<${tag} class="strow${opts.info ? ' info' : ''}" data-st="${esc(key)}">` +
+		`<span>${esc(label)}</span><span class="sv${opts.on ? ' on' : ''}${opts.chev ? ' chev' : ''}">${esc(value)}</span></${tag}>` +
+		(opts.note ? `<div class="stnote">${esc(opts.note)}</div>` : '');
+}
+
+function stRender() {
+	const v = stTop();
+	if (!v) return;
+	const path = st.map((x) => x.view == 'menu' ? t('settings') : x.cat ? lbl(x.cat.label) : x.item ? lbl(x.item.label) : x.dev ? (x.dev.name ?? x.dev.ip ?? x.dev.mac) : '').join(' › ');
+	setText('st-path', path);
+	let html = '';
+	if (v.view == 'menu') {
+		html = stCats == null ? `<div class="sub">${esc(t('loading'))}</div>` :
+			stCats.map((c, i) => stRow('cat:' + i, lbl(c.label), '', { chev: true })).join('');
+	} else if (v.view == 'cat') {
+		html = v.items == null ? `<div class="sub">${esc(t('loading'))}</div>` :
+			v.items.map((it) => stRow('item:' + it.id, lbl(it.label), stValue(it),
+				{ info: it.type == 'info', on: it.type == 'toggle' && it.value, note: lbl(it.note),
+				  chev: ['choice', 'number', 'multi'].includes(it.type) })).join('');
+	} else if (v.view == 'edit') {
+		const it = v.item;
+		if (it.type == 'choice') {
+			html = it.options.map((o, i) => `<button class="strow opt${String(o.value) == String(it.value) ? ' on' : ''}" data-st="opt:${i}"><span>${esc(lbl(o.label))}</span><span class="sv"></span></button>`).join('');
+		} else if (it.type == 'number') {
+			html = `<div class="card stnum">${esc(String(v.draft))}${esc(it.unit ?? '')}</div>` +
+				`<div class="stbtns"><button class="btn" data-st="num:-">−</button><button class="btn" data-st="num:+">+</button></div>` +
+				`<div style="height:8px"></div><button class="strow" data-st="num:save"><span>${esc(t('save'))}</span><span class="sv"></span></button>`;
+		} else if (it.type == 'multi') {
+			html = it.options.map((o, i) => `<button class="strow opt check${v.draft.includes(o.value) ? ' on' : ''}" data-st="chk:${i}"><span>${esc(lbl(o.label))}</span><span class="sv"></span></button>`).join('') +
+				`<button class="strow" data-st="multi:clear"><span>${esc(t('clear'))}</span><span class="sv"></span></button>` +
+				`<button class="strow" data-st="multi:apply"><span>${esc(t('apply'))}</span><span class="sv">${esc(v.draft.length ? '' : t('not_locked'))}</span></button>`;
+		}
+		if (it.note) html += `<div class="stnote">${esc(lbl(it.note))}</div>`;
+	} else if (v.view == 'devices') {
+		html = v.list == null ? `<div class="sub">${esc(t('loading'))}</div>` : v.list.length ?
+			v.list.map((d, i) => stRow('dev:' + i, d.name ?? d.ip ?? d.mac,
+				d.blocked ? t('blocked') : d.online ? `${t('online')} · ${t(d.via ?? 'wifi')}` : t('offline'),
+				{ on: d.online && !d.blocked, chev: true })).join('') : `<div class="sub">${esc(t('no_devices'))}</div>`;
+	} else if (v.view == 'device') {
+		const d = v.dev;
+		html = stRow('info:mac', t('mac'), d.mac, { info: true }) +
+			stRow('info:ip', 'IP', d.ip ?? '--', { info: true }) +
+			stRow('info:via', t('via'), d.online ? t(d.via ?? 'wifi') + (d.signal ? ` · ${d.signal} dBm` : '') : t('offline'), { info: true }) +
+			stRow('act:' + (d.blocked ? 'unblock' : 'block'), d.blocked ? t('unblock') : t('block'), '') +
+			(d.online && d.via == 'wifi' ? stRow('act:kick', t('kick'), '') : '');
+	}
+	const focused = document.activeElement?.dataset?.st;
+	setHTML('st-view', html);
+	if (focused) {
+		const el = document.querySelector(`[data-st="${CSS.escape(focused)}"]`);
+		if (el) el.focus();
+	}
+}
+
+async function stPost(v, body) {
+	const r = await fetch('/api/settings/' + encodeURIComponent(v.cat.id), {
+		method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+	}).then((r) => r.json()).catch(() => null);
+	toast(r?.ok ? t('saved') : `${t('failed')}${r?.error ? ': ' + r.error : ''}`);
+	if (r?.item) {
+		const i = v.items.findIndex((x) => x.id == r.item.id);
+		if (i >= 0) v.items[i] = r.item;
+	}
+	if (r?.ok && v.cat.id == 'screen') stScreenApplied(body.id, r.item?.value ?? body.value);
+	return r;
+}
+
+// the screen settings take effect on the page at once
+function stScreenApplied(id, value) {
+	if (!last) return;
+	if (id == 'brightness') {
+		brightness = Math.max(1, Math.round(+value * 255 / 100));
+		last.screen.brightness = brightness;
+		post('backlight', { level: brightness });
+	} else if (id == 'idle') {
+		last.screen.idle = +value;
+		resetIdle();
+	} else if (id == 'lang') {
+		lang = value in I18N ? value : 'zh';
+		last.screen.lang = lang;
+		applyLang();
+		if (last) render(last);
+	}
+}
+
+async function stClick(key, el) {
+	const v = stTop();
+	const [k, arg] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
+	if (k == 'cat') {
+		const c = stCats[+arg];
+		if (c.view == 'devices') {
+			const nv = { view: 'devices', cat: c, list: null };
+			st.push(nv); stRender();
+			const r = await fetch('/api/devices', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+			nv.list = r?.devices ?? [];
+			if (stTop() === nv) stRender();
+		} else {
+			const nv = { view: 'cat', cat: c, items: null };
+			st.push(nv); stRender();
+			stLoadCat(nv);
+		}
+		return;
+	}
+	if (k == 'item') {
+		const it = v.items.find((x) => x.id == arg);
+		if (!it) return;
+		if (it.type == 'toggle') {
+			if (it.confirm && !stConfirm(key, el)) return;
+			await stPost(v, { id: it.id, value: !it.value });
+			stRender();
+		} else if (it.type == 'action') {
+			if (it.confirm && !stConfirm(key, el)) return;
+			await stPost(v, { id: it.id });
+			stLoadCat(v);
+		} else if (it.type == 'choice' || it.type == 'number' || it.type == 'multi') {
+			st.push({ view: 'edit', cat: v.cat, item: it, parent: v,
+			          draft: it.type == 'multi' ? [...(it.value ?? [])] : it.value });
+			stRender();
+			const first = document.querySelector('#st-view button');
+			if (first) first.focus();
+		}
+		return;
+	}
+	if (v.view == 'edit') {
+		const it = v.item;
+		if (k == 'opt') {
+			const o = it.options[+arg];
+			if (it.confirm && String(o.value) != String(it.value) && !stConfirm(key, el)) return;
+			if (String(o.value) != String(it.value)) await stPost(v.parent, { id: it.id, value: o.value });
+			st.pop(); stRender();
+		} else if (k == 'num') {
+			if (arg == 'save') {
+				if (it.confirm && !stConfirm(key, el)) return;
+				await stPost(v.parent, { id: it.id, value: v.draft });
+				st.pop(); stRender();
+			} else {
+				v.draft = Math.min(it.max, Math.max(it.min, +v.draft + (arg == '+' ? 1 : -1) * (it.step ?? 1)));
+				stRender();
+			}
+		} else if (k == 'chk') {
+			const o = it.options[+arg];
+			v.draft = v.draft.includes(o.value) ? v.draft.filter((x) => x != o.value) : [...v.draft, o.value];
+			stRender();
+		} else if (k == 'multi') {
+			if (arg == 'clear') { v.draft = []; stRender(); return; }
+			if (it.confirm && !stConfirm(key, el)) return;
+			await stPost(v.parent, { id: it.id, value: v.draft });
+			st.pop(); stRender();
+		}
+		return;
+	}
+	if (k == 'dev') {
+		st.push({ view: 'device', cat: v.cat, dev: v.list[+arg], parent: v });
+		stRender();
+		return;
+	}
+	if (k == 'act') {
+		if (!stConfirm(key, el)) return;
+		const r = await fetch('/api/devices', {
+			method: 'POST', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ mac: v.dev.mac, action: arg })
+		}).then((r) => r.json()).catch(() => null);
+		toast(r?.ok ? (arg == 'kick' ? t('kicked') : t('saved')) : `${t('failed')}${r?.error ? ': ' + r.error : ''}`);
+		if (r?.devices) {
+			v.parent.list = r.devices;
+			v.dev = r.devices.find((d) => d.mac == v.dev.mac) ?? v.dev;
+		}
+		stRender();
+	}
+}
+
+// keys on the settings page; true = taken
+function stKey(kind) {
+	const v = stTop();
+	if (!v) return false;
+	if (kind == 'back' && st.length > 1) {
+		stDisarm();
+		st.pop();
+		stRender();
+		const first = document.querySelector('#st-view button');
+		if (first) first.focus();
+		return true;
+	}
+	if ((kind == 'left' || kind == 'right') && st.length > 1) {
+		// a number being edited: left/right step it; elsewhere below the menu, nothing
+		if (v.view == 'edit' && v.item.type == 'number')
+			stClick(kind == 'left' ? 'num:-' : 'num:+', null);
+		return true;
+	}
+	return false;
+}
+
+on('st-view', 'click', (e) => {
+	const b = e.target.closest('button[data-st]');
+	if (b) stClick(b.dataset.st, b);
+});
+
+/* ---------- apps: plugins ---------- */
+
+let apps = null;
+let appOpen = null;               // the manifest of the open plugin
+let appKeepAwake = false;
+
+async function loadApps() {
+	const r = await fetch('/api/plugins', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+	apps = r?.plugins ?? [];
+	setHTML('ap-list', apps.length ? apps.map((m, i) =>
+		`<button class="strow" data-app="${i}"><span>${esc(lbl(m.name) || m.id)}</span><span class="sv chev">${esc(lbl(m.description) ?? '')}</span></button>`).join('')
+		: `<div class="card sub">${esc(t('no_apps'))}</div>`);
+}
+
+function openApp(m) {
+	const f = $('app-frame');
+	appOpen = m;
+	appKeepAwake = false;
+	f.src = `/plugins/${encodeURIComponent(m.id)}/${m.entry ?? 'index.html'}?lang=${lang}`;
+	f.hidden = false;
+	f.onload = () => f.focus();
+	setText('foot-title', lbl(m.name) || m.id);
+}
+
+function closeApp() {
+	const f = $('app-frame');
+	f.hidden = true;
+	f.src = 'about:blank';
+	appOpen = null;
+	appKeepAwake = false;
+	resetIdle();
+	setText('foot-title', t(pages[page].dataset.title));
+	const b = document.querySelector('[data-app]');
+	if (b) b.focus();
+}
+
+function toApp(msg) {
+	const f = $('app-frame');
+	if (appOpen && f.contentWindow) f.contentWindow.postMessage({ e5: msg.e5, ...msg }, '*');
+}
+
+on('ap-list', 'click', (e) => {
+	const b = e.target.closest('[data-app]');
+	if (b && apps) openApp(apps[+b.dataset.app]);
+});
+
+// the plugin side of the protocol (sdk/e5.js; docs/API.md, "Frontend")
+window.addEventListener('message', (e) => {
+	const m = e.data;
+	if (!appOpen || !m || typeof m != 'object' || e.source !== $('app-frame').contentWindow) return;
+	switch (m.e5) {
+	case 'key':                     // every key the plugin sees, for the host's own keys
+		if (blank) { setBlank(false); toApp({ e5: 'blank', on: false }); return; }
+		resetIdle();
+		if (m.kind == 'power' && !m.repeat) { setBlank(true); toApp({ e5: 'blank', on: true }); }
+		break;
+	case 'exit': closeApp(); break;
+	case 'toast': toast(String(m.text ?? '')); break;
+	case 'keep-awake':
+		appKeepAwake = !!m.on;
+		resetIdle();
+		break;
+	case 'ready':
+		toApp({ e5: 'hello', lang, api_version: 1, blank });
+		break;
+	}
 });
 
 /* ---------- actions ---------- */

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<style>
+	html, body { margin: 0; background: #0b0e13; color: #e8ecf2;
+		font-family: "Noto Sans CJK SC", "DejaVu Sans", sans-serif; user-select: none; cursor: none; }
+	body { padding: 8px; }
+	.card { background: #161b23; border-radius: 10px; padding: 9px 11px; margin-bottom: 7px; }
+	.row { display: flex; justify-content: space-between; align-items: baseline; }
+	.name { font-weight: bold; }
+	.sub { color: #8b95a5; font-size: 12px; }
+	.ms { font-size: 22px; font-weight: bold; font-variant-numeric: tabular-nums; }
+	.good { color: #3ccf7a; } .fair { color: #f2c14b; } .poor { color: #f0625a; }
+	button { font: inherit; color: #e8ecf2; background: #232a35; border: 0; border-radius: 8px;
+		padding: 9px; width: 100%; outline: none; }
+	button:focus { box-shadow: 0 0 0 2px #fff; }
+</style>
+</head>
+<body>
+<div id="list"></div>
+<button id="run"></button>
+<div id="when" class="sub" style="margin-top:6px"></div>
+<script src="/sdk/e5.js"></script>
+<script>
+'use strict';
+// A plugin with a backend (backend.uc: GET /run, GET /last) and settings
+// (manifest.json "settings": they appear under 高级 -> 网络测试).
+const $ = (id) => document.getElementById(id);
+let busy = false;
+
+function esc(s) {
+	return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function draw(res, t) {
+	$('list').innerHTML = res.length ? res.map((r) => {
+		const cls = r.avg == null ? 'poor' : r.avg < 50 ? 'good' : r.avg < 150 ? 'fair' : 'poor';
+		return `<div class="card"><div class="row"><span class="name">${esc(r.name)}</span>` +
+			`<span class="ms ${cls}">${r.avg == null ? '--' : r.avg.toFixed(0) + ' ms'}</span></div>` +
+			`<div class="row sub"><span>${esc(r.host)}</span><span>${e5.t({ zh: '丢包', en: 'loss' })} ${r.loss}%` +
+			`${r.min != null ? ` · ${r.min.toFixed(0)}–${r.max.toFixed(0)} ms` : ''}</span></div></div>`;
+	}).join('') : `<div class="card sub">${e5.t({ zh: '按确认开始测试', en: 'Press confirm to start' })}</div>`;
+	$('when').textContent = t ? new Date(t * 1000).toLocaleTimeString() : '';
+}
+
+async function run() {
+	if (busy) return;
+	busy = true;
+	$('run').textContent = e5.t({ zh: '测试中…', en: 'Testing…' });
+	e5.keepAwake(true);                    // the screen stays on while it runs
+	try {
+		const r = await e5.api('/run');
+		draw(r.results, Date.now() / 1000);
+	} catch (e) {
+		e5.toast(e.message);
+	}
+	e5.keepAwake(false);
+	busy = false;
+	$('run').textContent = e5.t({ zh: '重新测试', en: 'Test again' });
+}
+
+e5.onKey((k) => {
+	if (k.kind == 'ok') { run(); return true; }
+	return false;
+});
+$('run').addEventListener('click', run);
+$('run').textContent = e5.t({ zh: '开始测试', en: 'Start' });
+
+e5.api('/last').then((r) => draw(r.results ?? [], r.time)).catch(() => draw([], null));
+</script>
+</body>
+</html>

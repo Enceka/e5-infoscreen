@@ -18,6 +18,6 @@ ssh "root@$HOST" "apk update >/dev/null && apk add $PKGS"
 echo "== files"
 ( cd "$HERE/root" && COPYFILE_DISABLE=1 tar --exclude .DS_Store -czf - . ) |
     ssh "root@$HOST" 'tar -xzf - -C / &&
-        sh /etc/uci-defaults/80-e5-infoscreen && rm -f /etc/uci-defaults/80-e5-infoscreen &&
+        for f in /etc/uci-defaults/8[0-9]-e5-infoscreen*; do sh "$f" && rm -f "$f"; done;
         /etc/init.d/e5-infoscreen enable && /etc/init.d/e5-infoscreen restart'
 echo "== done: the panel shows the info screen in a few seconds"

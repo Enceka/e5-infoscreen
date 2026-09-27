@@ -12,3 +12,4 @@ qrencode
 fontconfig
 dejavu-fonts-ttf-DejaVuSans
 dejavu-fonts-ttf-DejaVuSans-Bold
+vnstat2

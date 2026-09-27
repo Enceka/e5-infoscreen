@@ -65,6 +65,26 @@
 		</div>
 	</section>
 
+	<!-- traffic: today, this month, the last days (vnstat) -->
+	<section class="page" data-title="traffic">
+		<div class="card">
+			<div class="lh"><span data-t="today"></span></div>
+			<div class="tr"><span class="arrow">↓</span><span id="tf-day-rx" class="mid">--</span><span class="arrow up">↑</span><span id="tf-day-tx" class="mid">--</span></div>
+		</div>
+		<div class="card">
+			<div class="lh"><span data-t="this_month"></span></div>
+			<div class="tr"><span class="arrow">↓</span><span id="tf-mon-rx" class="mid">--</span><span class="arrow up">↑</span><span id="tf-mon-tx" class="mid">--</span></div>
+		</div>
+		<div class="card">
+			<div class="lh"><span data-t="since_boot"></span></div>
+			<div class="tr"><span class="arrow">↓</span><span id="tf-boot-rx" class="mid">--</span><span class="arrow up">↑</span><span id="tf-boot-tx" class="mid">--</span></div>
+		</div>
+		<div class="card">
+			<div class="lh"><span data-t="last_days"></span></div>
+			<div id="tf-days" class="days"></div>
+		</div>
+	</section>
+
 	<!-- SMS: the list, or one message -->
 	<section class="page" data-title="sms">
 		<div id="sms-list"></div>
@@ -123,8 +143,8 @@
 			<button id="dv-reconnect" class="btn wide" data-t="reconnect"></button>
 		</div>
 	</section>
-	<!-- advanced: details, read-only -->
-	<section class="page" data-title="advanced">
+	<!-- advanced information: details, read-only -->
+	<section class="page" data-title="adv_info">
 		<div class="card grid">
 			<span class="label sect" data-t="device"></span><span></span>
 			<span class="label" data-t="model"></span><span id="ad-model" class="value">--</span>
@@ -164,7 +184,20 @@
 			<button id="ad-showids" class="btn wide" data-t="show_ids"></button>
 		</div>
 	</section>
+	<!-- advanced: settings by function -->
+	<section class="page" data-title="settings">
+		<div id="st-path" class="stpath"></div>
+		<div id="st-view"></div>
+	</section>
+
+	<!-- apps: the installed plugins -->
+	<section class="page" data-title="apps">
+		<div id="ap-list"></div>
+	</section>
 </main>
+
+<!-- an open plugin, over the pages -->
+<iframe id="app-frame" hidden></iframe>
 
 <footer id="foot">
 	<span id="foot-title"></span>

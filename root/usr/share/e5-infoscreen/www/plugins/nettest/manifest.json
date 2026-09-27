@@ -1,0 +1,24 @@
+{
+	"id": "nettest",
+	"api_version": 1,
+	"version": "1.0",
+	"name": { "zh": "网络测试", "en": "Network test" },
+	"description": { "zh": "延迟和丢包", "en": "Latency and loss" },
+	"entry": "index.html",
+	"order": 30,
+	"settings": [
+		{
+			"id": "targets", "type": "choice", "uci": "e5-plugin-nettest.settings.targets", "default": "cn",
+			"label": { "zh": "测试目标", "en": "Targets" },
+			"options": [
+				{ "value": "cn", "label": { "zh": "国内 (阿里/腾讯/百度 DNS)", "en": "China (Ali/Tencent/Baidu DNS)" } },
+				{ "value": "global", "label": { "zh": "国际 (Cloudflare/Google/Quad9)", "en": "Global (Cloudflare/Google/Quad9)" } }
+			]
+		},
+		{
+			"id": "count", "type": "number", "uci": "e5-plugin-nettest.settings.count", "default": "4",
+			"min": 1, "max": 10, "step": 1, "unit": "",
+			"label": { "zh": "每个目标的次数", "en": "Pings per target" }
+		}
+	]
+}

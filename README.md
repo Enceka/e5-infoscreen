@@ -11,10 +11,13 @@ device at a glance, and is driven by touch and by the keypad.
 |---|---|
 | Overview | download/upload rate, traffic since boot, network state (5G/4G, IPv4/IPv6), hotspot, clients, battery |
 | Signal | technology and band (n41, B3, ...), RSRP/RSRQ/SINR with grades, PCI, ARFCN, bandwidth, neighbour cells |
+| Traffic | today's and this month's download/upload, since boot, the last 7 days (vnstat on the modem's interface, kept in `/etc/vnstat`) |
 | SMS | the received messages, newest first, unread ones marked; open one to read it, delete it (press twice) |
 | Hotspot | SSID, a QR code to join, the passphrase on request, on/off, the clients (Wi-Fi and USB) |
 | Device | battery, uptime, time online, load, memory, LAN/IPv4/IPv6 addresses, brightness, reconnect |
-| Advanced | device (system, image, kernel, storage, temperature, battery voltage); baseband (model, firmware, 5G SA, modes); band locks (LTE, NR) and cell locks, decoded from `AT+SPLBAND` / `AT+SPFORCEFRQ`; SIM (active slot, operator, registration); the identifiers on request |
+| Details (高级信息) | device (system, image, kernel, storage, temperature, battery voltage); baseband (model, firmware, 5G SA, modes); band locks (LTE, NR) and cell locks, decoded from `AT+SPLBAND` / `AT+SPFORCEFRQ`; SIM (active slot, operator, registration); the identifiers on request |
+| Settings (高级) | by function: **network** (APN switch, 5G SA, LTE/NR band lock, default bands, cell lock, reconnect), **devices** (block internet, kick off Wi-Fi), **charging** (limit, resume level, charge to full once -- e5-linux's `e5-charge`), **notifications** (SMS vibration, light up), **screen** (brightness, screen-off time, language), **system** (reboot, boot Debian or Android once), and each plugin's settings |
+| Apps | the installed plugins; two come with it, a calculator and a network test |
 
 The status bar carries the operator, the technology, signal bars, the battery
 and the time, and ✉ with the number of unread messages.  A new message lights
@@ -59,10 +62,17 @@ Measured on the device (WebKit's names in brackets):
 | up / down | move between the buttons of a page, or scroll it |
 | confirm (`KEY_SELECT`, "Unidentified") | press the focused button |
 | back (`KEY_BACK` + BackSpace) | close the message, leave the button, or go to the first page |
-| 1-6 | go to that page |
+| 1-9 | go to that page |
 | side key (`F1`) | the hotspot page (to show the QR code) |
 | power (`PowerOff`) | screen off |
 | volume | left to the volume |
+
+## Plugins
+
+A plugin is a directory under `/usr/share/e5-infoscreen/www/plugins/<id>/`: a
+`manifest.json`, a page that loads `/sdk/e5.js`, and optionally a ucode
+`backend.uc` and settings.  [`docs/API.md`](docs/API.md) is the reference for
+the core API, the settings items, the SDK and the backend context.
 
 ## Install
 

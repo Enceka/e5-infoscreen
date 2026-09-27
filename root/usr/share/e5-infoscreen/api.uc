@@ -13,18 +13,25 @@
 //   GET  /api/sms            the messages, newest first, and which are unread
 //   POST /api/sms-read       the messages have been seen (e5-sms-notify read)
 //   POST /api/sms-delete     {"id": N}
+//   GET  /api/traffic        today's, this month's and the last days' traffic (vnstat)
 //   GET  /api/advanced       device, baseband and SIM details, band and cell locks
 //   GET  /api/identity       IMEI, ICCID, IMSI, own number -- when the page asks
 //   POST /api/wifi           {"on": true|false}
 //   POST /api/backlight      {"level": 0-255, "save": true|false}
 //   POST /api/wan-reconnect
 //   POST /api/key            {"key": ..., "code": ..., "keyCode": ...}  (key log)
+//   GET  /api/settings       the settings categories;  GET /api/settings/<c> its items
+//   POST /api/settings/<c>   {"id": ..., "value": ...} -> the item, read back
+//   GET  /api/devices        the LAN's devices;  POST /api/devices {"mac", "action"}
+//   GET  /api/plugins        the installed plugins (www/plugins/<id>/manifest.json)
+//   *    /api/plugins/<id>/<path>   a plugin's own backend (backend.uc)
+// docs/API.md is the reference.
 //
 // The identities of the SIM and the device (own number, IMEI, ICCID, IMSI)
 // are returned by /api/identity alone, which the page calls when asked to
 // show them.
 
-import { readfile, writefile, popen, open, stat, glob } from 'fs';
+import { readfile, writefile, popen, open, stat, glob, lsdir } from 'fs';
 import { connect } from 'ubus';
 import { cursor } from 'uci';
 
@@ -96,6 +103,39 @@ function read_trim(path) {
 function read_num(path) {
 	let s = read_trim(path);
 	return (s == null || s == '') ? null : +s;
+}
+
+// (the reply helpers come first: ucode resolves a name where it is used,
+// so a function further down could not call them)
+function reply(code, type, body) {
+	uhttpd.send(`Status: ${code}\r\nContent-Type: ${type}\r\nCache-Control: no-store\r\n\r\n`);
+	if (body != null)
+		uhttpd.send(body);
+}
+
+function reply_json(code, obj) {
+	reply(code, 'application/json', sprintf('%J', obj));
+}
+
+// a small JSON body: with a Content-Length (fetch() from the page) or
+// chunked, without one (uclient-fetch, wget on the device)
+function read_body(env) {
+	let len = (env.CONTENT_LENGTH != null) ? +env.CONTENT_LENGTH : null;
+	if (len != null && (len <= 0 || len > 4096))
+		return {};
+	let body = '';
+	while (length(body) < (len ?? 4096)) {
+		let chunk = uhttpd.recv((len ?? 4096) - length(body));
+		if (chunk == null || chunk == '')
+			break;
+		body += chunk;
+	}
+	try {
+		return json(body) ?? {};
+	}
+	catch (e) {
+		return {};
+	}
 }
 
 function ubus_call(obj, method, args) {
@@ -329,6 +369,7 @@ function clients() {
 		push(list, {
 			name: (f[3] != '*') ? f[3] : null,
 			ip: f[2],
+			mac,
 			via,
 			signal: wifi[mac]
 		});
@@ -453,6 +494,33 @@ function sms_delete(id) {
 		writefile(SMS_UNREAD, length(rest) ? join('\n', rest) + '\n' : '');
 	}
 	return ok;
+}
+
+/* ---------- traffic ---------- */
+
+// vnstat's day and month counters for the modem's interface (bytes)
+function traffic_usage() {
+	let v = sh_json(`vnstat --json -i ${WAN_DEV} 2>/dev/null`);
+	let tr = v?.interfaces?.[0]?.traffic;
+	if (!tr)
+		return { available: false };
+	let lt = localtime();
+	let pick = (list, match_fn) => {
+		for (let e in (list ?? []))
+			if (match_fn(e.date))
+				return { rx: e.rx, tx: e.tx };
+		return { rx: 0, tx: 0 };
+	};
+	let days = [];
+	for (let e in slice(tr.day ?? [], -7))
+		push(days, { date: sprintf('%02d-%02d', e.date.month, e.date.day), rx: e.rx, tx: e.tx });
+	return {
+		available: true,
+		today: pick(tr.day, (d) => d.year == lt.year && d.month == lt.mon && d.day == lt.mday),
+		month: pick(tr.month, (d) => d.year == lt.year && d.month == lt.mon),
+		total: { rx: tr.total?.rx ?? 0, tx: tr.total?.tx ?? 0 },
+		days
+	};
 }
 
 /* ---------- advanced ---------- */
@@ -610,6 +678,226 @@ function identity() {
 	};
 }
 
+/* ---------- context: what settings.uc and plugin backends get ---------- */
+
+const API_VERSION = 1;
+const WWW = '/usr/share/e5-infoscreen/www';
+const PLUGINS = WWW + '/plugins';
+
+function cells() {
+	let out = [];
+	for (let line in (sh_json('mmcli -J -m any --timeout=5 --get-cell-info 2>/dev/null')?.modem?.generic?.['cell-info'] ?? []))
+		push(out, parse_cell(line));
+	return out;
+}
+
+// a plugin's state files live under its own name
+function make_ctx(ns) {
+	let pre = ns ? `plugin-${ns}-` : '';
+	return {
+		api_version: API_VERSION,
+		sh, sh_json, at, read_trim, read_num, payload_ints,
+		ubus: ubus_call,
+		uci: () => cursor(),
+		run: (cmd) => system(cmd),
+		// (single-quoted for the shell: the text is data, $(...) in it stays text)
+		log: (msg) => system(`logger -t e5-infoscreen${ns ? '/' + ns : ''} -- '${replace(`${msg}`, /'/g, "'\\''")}'`),
+		state_get: (name, ttl) => state_get(pre + name, ttl),
+		state_put: (name, obj) => state_put(pre + name, obj),
+		forget: (name) => system(`rm -f ${RUN}/${pre}${name}.json`),
+		modem: modem_status,
+		modem_present: () => modem_status().present,
+		cells,
+		lte_bands, nr_bands, cell_locks,
+		NR_V1, NR_V3, NR_SUPER
+	};
+}
+
+/* ---------- plugins ---------- */
+
+function plugin_manifests() {
+	let out = [];
+	for (let id in (lsdir(PLUGINS) ?? [])) {
+		if (!match(id, /^[a-z0-9][a-z0-9_-]*$/))
+			continue;
+		let m;
+		try {
+			m = json(readfile(`${PLUGINS}/${id}/manifest.json`) ?? 'null');
+		}
+		catch (e) {
+			continue;
+		}
+		if (type(m) != 'object' || m.id != id || +(m.api_version ?? 0) > API_VERSION)
+			continue;
+		m.has_backend = stat(`${PLUGINS}/${id}/backend.uc`) != null;
+		push(out, m);
+	}
+	return sort(out, (a, b) => (a.order ?? 50) - (b.order ?? 50));
+}
+
+// a plugin's settings are uci options, so the generic item code serves them:
+// { id, type: toggle|choice|number, uci: "config.section.option", default, ... }
+function plugin_category(m) {
+	let items = m.settings;
+	return {
+		id: `plugin:${m.id}`, label: m.name, plugin: m.id,
+		items: function() {
+			let out = [], c = cursor();
+			for (let d in items) {
+				let u = split(d.uci ?? '', '.');
+				let raw = (length(u) == 3) ? (c.get(u[0], u[1], u[2]) ?? d.default) : d.default;
+				let v = raw;
+				if (d.type == 'toggle') v = (raw == '1' || raw == true);
+				else if (d.type == 'number') v = +raw;
+				let it = { value: v };
+				for (let k in [ 'id', 'type', 'label', 'note', 'confirm', 'options', 'min', 'max', 'step', 'unit' ])
+					if (d[k] != null) it[k] = d[k];
+				push(out, it);
+			}
+			return out;
+		},
+		set: function(id, value) {
+			for (let d in items) {
+				if (d.id != id) continue;
+				let u = split(d.uci ?? '', '.');
+				if (length(u) != 3) return 'no uci option';
+				let v = (d.type == 'toggle') ? (value ? '1' : '0') : `${value}`;
+				if (d.type == 'number' && (+v < d.min || +v > d.max)) return 'out of range';
+				// the plugin's uci config is created on its first setting
+				if (!match(u[0], /^[a-z0-9_-]+$/)) return 'bad uci config name';
+				if (!stat(`/etc/config/${u[0]}`)) writefile(`/etc/config/${u[0]}`, '');
+				let c = cursor();
+				if (c.get(u[0], u[1]) == null) c.set(u[0], u[1], 'settings');
+				c.set(u[0], u[1], u[2], v);
+				c.commit(u[0]);
+				return null;
+			}
+			return 'no such setting';
+		}
+	};
+}
+
+/* ---------- settings ---------- */
+
+let settings_list = null;
+function settings() {
+	if (settings_list == null) {
+		let f = loadfile('/usr/share/e5-infoscreen/settings.uc', { raw_mode: true });
+		settings_list = f()(make_ctx(null));
+		// the plugins' settings: a category each, uci-backed items from the manifest
+		for (let m in plugin_manifests())
+			if (length(m.settings ?? []))
+				push(settings_list, plugin_category(m));
+	}
+	return settings_list;
+}
+
+function category(id) {
+	for (let c in settings())
+		if (c.id == id) return c;
+	return null;
+}
+
+function settings_items(c) {
+	return c.items ? c.items() : [];
+}
+
+function query_args(qs) {
+	let q = {};
+	for (let kv in split(qs ?? '', '&')) {
+		if (kv == '') continue;
+		let i = index(kv, '=');
+		let k = (i < 0) ? kv : substr(kv, 0, i), v = (i < 0) ? '' : substr(kv, i + 1);
+		q[uhttpd.urldecode(k)] = uhttpd.urldecode(replace(v, /\+/g, ' '));
+	}
+	return q;
+}
+
+// backend.uc returns function(ctx) -> { "GET /path": function(req) ... }; a
+// handler returns an object (sent as JSON), or { status, type, body }
+function plugin_request(env, id, rest, body) {
+	if (!match(id, /^[a-z0-9][a-z0-9_-]*$/))
+		return reply_json(404, { error: 'no such plugin' });
+	let path = `${PLUGINS}/${id}/backend.uc`;
+	if (!stat(path))
+		return reply_json(404, { error: 'no backend' });
+	let routes = loadfile(path, { raw_mode: true })()(make_ctx(id));
+	let key = `${env.REQUEST_METHOD} ${rest == '' ? '/' : rest}`;
+	let h = routes?.[key];
+	if (type(h) != 'function')
+		return reply_json(404, { error: `no route ${key}` });
+	let r = h({ method: env.REQUEST_METHOD, path: rest, query: query_args(env.QUERY_STRING), body });
+	if (type(r) == 'object' && r.body != null && (r.status || r.type))
+		return reply(r.status ?? 200, r.type ?? 'text/plain', r.body);
+	return reply_json(200, r ?? {});
+}
+
+/* ---------- devices ---------- */
+
+function block_rule(mac) {
+	return 'e5_block_' + replace(lc(mac), /:/g, '');
+}
+
+function devices() {
+	let online = {};
+	for (let c in clients())
+		if (c.mac || c.ip)
+			online[lc(c.mac ?? '')] = c;
+	let fw = cursor(), blocked = {};
+	fw.foreach('firewall', 'rule', (r) => {
+		if (substr(r['.name'], 0, 9) == 'e5_block_' && r.src_mac)
+			blocked[lc(r.src_mac)] = true;
+	});
+	let list = [], seen = {};
+	let add = (mac, ip, name, via) => {
+		mac = lc(mac);
+		if (seen[mac]) return;
+		seen[mac] = true;
+		let o = online[mac];
+		push(list, { mac, ip: o?.ip ?? ip, name: o?.name ?? name, via: o?.via ?? via,
+		             online: !!o, signal: o?.signal, blocked: !!blocked[mac] });
+	};
+	for (let line in split(readfile('/tmp/dhcp.leases') ?? '', '\n')) {
+		let f = split(line, ' ');
+		if (length(f) >= 4)
+			add(f[1], f[2], (f[3] != '*') ? f[3] : null, (lc(f[1]) == USB_HOST_MAC) ? 'usb' : 'wifi');
+	}
+	for (let mac in keys(blocked))
+		add(mac, null, null, null);
+	return sort(list, (a, b) => (a.online == b.online) ? ((a.ip ?? '') < (b.ip ?? '') ? -1 : 1) : (a.online ? -1 : 1));
+}
+
+function device_action(mac, action) {
+	if (!match(mac ?? '', /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/))
+		return 'bad MAC';
+	let fw = cursor(), name = block_rule(mac);
+	if (action == 'block') {
+		fw.set('firewall', name, 'rule');
+		fw.set('firewall', name, 'name', `e5 block ${mac}`);
+		fw.set('firewall', name, 'src', 'lan');
+		fw.set('firewall', name, 'dest', 'wan');
+		fw.set('firewall', name, 'src_mac', mac);
+		fw.set('firewall', name, 'target', 'REJECT');
+		fw.commit('firewall');
+		system('/etc/init.d/firewall reload >/dev/null 2>&1');
+		return null;
+	}
+	if (action == 'unblock') {
+		fw.delete('firewall', name);
+		fw.commit('firewall');
+		system('/etc/init.d/firewall reload >/dev/null 2>&1');
+		return null;
+	}
+	if (action == 'kick') {
+		if (!bus) bus = connect();
+		for (let obj in (bus?.list() ?? []))
+			if (substr(obj, 0, 8) == 'hostapd.')
+				ubus_call(obj, 'del_client', { addr: mac, reason: 5, deauth: true, ban_time: 30000 });
+		return null;
+	}
+	return 'no such action';
+}
+
 function sms_config() {
 	let c = cursor();
 	return { screen: c.get('e5-notify', 'sms', 'screen') != '0' };
@@ -685,37 +973,6 @@ function log_key(k) {
 	return true;
 }
 
-function reply(code, type, body) {
-	uhttpd.send(`Status: ${code}\r\nContent-Type: ${type}\r\nCache-Control: no-store\r\n\r\n`);
-	if (body != null)
-		uhttpd.send(body);
-}
-
-function reply_json(code, obj) {
-	reply(code, 'application/json', sprintf('%J', obj));
-}
-
-// a small JSON body: with a Content-Length (fetch() from the page) or
-// chunked, without one (uclient-fetch, wget on the device)
-function read_body(env) {
-	let len = (env.CONTENT_LENGTH != null) ? +env.CONTENT_LENGTH : null;
-	if (len != null && (len <= 0 || len > 4096))
-		return {};
-	let body = '';
-	while (length(body) < (len ?? 4096)) {
-		let chunk = uhttpd.recv((len ?? 4096) - length(body));
-		if (chunk == null || chunk == '')
-			break;
-		body += chunk;
-	}
-	try {
-		return json(body) ?? {};
-	}
-	catch (e) {
-		return {};
-	}
-}
-
 global.handle_request = function(env) {
 	let path = env.PATH_INFO;
 	if (path == null) {
@@ -737,6 +994,36 @@ global.handle_request = function(env) {
 			return reply_json(200, { ok: system('e5-sms-notify read >/dev/null 2>&1 || : > ' + SMS_UNREAD) == 0 });
 		if (post && path == '/sms-delete')
 			return reply_json(200, { ok: sms_delete(read_body(env).id ?? -1) });
+		if (!post && path == '/settings')
+			return reply_json(200, { categories: map(settings(), (c) => ({ id: c.id, label: c.label, view: c.view, plugin: c.plugin })) });
+		let sm = match(path, /^\/settings\/([a-z0-9:_-]+)$/);
+		if (sm) {
+			let c = category(sm[1]);
+			if (!c || !c.items)
+				return reply_json(404, { error: 'no such category' });
+			if (!post)
+				return reply_json(200, { id: c.id, label: c.label, items: settings_items(c) });
+			let b = read_body(env);
+			let err = c.set(b.id, b.value);
+			let item = null;
+			for (let i in settings_items(c))
+				if (i.id == b.id) item = i;
+			return reply_json(err ? 400 : 200, { ok: !err, error: err, item });
+		}
+		if (!post && path == '/devices')
+			return reply_json(200, { devices: devices() });
+		if (post && path == '/devices') {
+			let b = read_body(env);
+			let err = device_action(lc(b.mac ?? ''), b.action);
+			return reply_json(err ? 400 : 200, { ok: !err, error: err, devices: devices() });
+		}
+		if (!post && path == '/plugins')
+			return reply_json(200, { api_version: API_VERSION, plugins: plugin_manifests() });
+		let pm = match(path, /^\/plugins\/([^\/]+)(\/.*)?$/);
+		if (pm)
+			return plugin_request(env, pm[1], pm[2] ?? '', post ? read_body(env) : null);
+		if (!post && path == '/traffic')
+			return reply_json(200, traffic_usage());
 		if (!post && path == '/advanced')
 			return reply_json(200, advanced());
 		if (!post && path == '/identity')
