@@ -397,6 +397,8 @@ const system_cat = {
 			{ id: 'traffic_clear', type: 'action', label: L('清空流量记录', 'Clear traffic records'), confirm: true,
 			  note: L('今日、本月和每日的统计都从零开始', 'Today, this month and the days start from zero') },
 			{ id: 'reboot', type: 'action', label: L('重启', 'Reboot'), confirm: true },
+			{ id: 'poweroff', type: 'action', label: L('关机', 'Power off'), confirm: true,
+			  note: L('插着 USB 时可能会进入充电模式', 'With USB plugged in it may start in charging mode') },
 			{ id: 'debian_once', type: 'action', label: L('下次启动 Debian', 'Boot Debian once'), confirm: true,
 			  note: L('重启进 Debian 一次，再重启回到 OpenWrt', 'One boot of Debian, then OpenWrt again') },
 			{ id: 'android_once', type: 'action', label: L('下次启动 Android', 'Boot Android once'), confirm: true,
@@ -430,6 +432,7 @@ const system_cat = {
 			return null;
 		}
 		if (id == 'reboot') { ctx.run('(sleep 2; reboot) >/dev/null 2>&1 &'); return null; }
+		if (id == 'poweroff') { ctx.run('(sleep 2; poweroff) >/dev/null 2>&1 &'); return null; }
 		if (id == 'debian_once') { ctx.run('(e5-os debian --once && sleep 2 && reboot) >/dev/null 2>&1 &'); return null; }
 		if (id == 'android_once') { ctx.run('(e5-next-boot android && sleep 2 && reboot) >/dev/null 2>&1 &'); return null; }
 		return 'no such setting';
