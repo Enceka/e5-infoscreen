@@ -97,6 +97,17 @@ SDK 和后端上下文的说明见 [`docs/API.zh-CN.md`](docs/API.zh-CN.md)。
 * 在设备上运行 `wget -q -O - http://127.0.0.1:8088/api/status`：查看全部数据。
 * `/tmp/e5-infoscreen-keys.log`：页面每次启动后的前 200 次按键，记录 WebKit 给出的键名。
 
+## 维护者
+
+Enceka <enceka@yeah.net>。屏幕上的“高级 → 关于”也显示这些信息。
+
+## 免责声明
+
+本软件为非官方软件，与荣悦及设备、芯片厂商无关，也未获其认可。软件按“原样”提供，不作任何
+明示或暗示的担保（见 [`LICENSE`](LICENSE)）。它能修改的内容，包括网络模式、频段和小区锁定、
+原始 AT 指令以及充电设置，可能导致断网、模组或电池处于异常状态，或使设备失去保修。使用风险
+由使用者自行承担；所选频段和无线设置请遵守当地法规。
+
 ## 许可
 
-MIT，见 [`LICENSE`](LICENSE)。
+MIT，© 2026 Enceka，见 [`LICENSE`](LICENSE)。

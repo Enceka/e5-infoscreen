@@ -437,10 +437,31 @@ const system_cat = {
 	}
 };
 
+/* ---------- about ---------- */
+
+const about = {
+	id: 'about', label: L('关于', 'About'),
+	items: function() {
+		return [
+			{ id: 'name', type: 'info', label: L('信息屏', 'Info screen'), value: 'e5-infoscreen' },
+			{ id: 'maintainer', type: 'info', label: L('维护者', 'Maintainer'), value: 'Enceka <enceka@yeah.net>' },
+			{ id: 'copyright', type: 'info', label: L('版权', 'Copyright'), value: '© 2026 Enceka' },
+			{ id: 'license', type: 'info', label: L('许可', 'License'), value: 'MIT' },
+			{ id: 'disclaimer', type: 'info', label: L('免责声明', 'Disclaimer'),
+			  value: L('按“原样”提供，不作任何担保', 'Provided "as is", without warranty'),
+			  note: L('非官方软件，与荣悦及设备、芯片厂商无关。修改网络模式、频段、AT 指令和充电设置可能导致断网、设备异常或失去保修，风险由使用者自行承担。',
+			          'Unofficial software, not affiliated with Rongyue or the device and chip makers.  Changing the network mode, bands, AT commands or charging can cut the connection, upset the device or void its warranty; at your own risk.') }
+		];
+	},
+	set: function(id, value) {
+		return 'read-only';
+	}
+};
+
 // (the devices category is its own view: /api/devices)
 // (the AT page is its own view as well: /api/at, /api/at/presets)
 return [ network, { id: 'at', label: L('AT 指令', 'AT commands'), view: 'at' },
          { id: 'devices', label: L('设备管理', 'Devices'), view: 'devices' },
-         charge, notify, screen, system_cat ];
+         charge, notify, screen, system_cat, about ];
 
 };

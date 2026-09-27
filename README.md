@@ -107,6 +107,20 @@ and enables and starts the service.  A reinstall keeps `/etc/config/e5-infoscree
 * `/tmp/e5-infoscreen-keys.log`: the first 200 keys each start of the page,
   as WebKit reports them.
 
+## Maintainer
+
+Enceka <enceka@yeah.net>.  The screen shows this under 高级 -> 关于 (About).
+
+## Disclaimer
+
+Unofficial software, not affiliated with or endorsed by Rongyue or the makers
+of the device and its chips.  It is provided "as is", without warranty of any
+kind (see [`LICENSE`](LICENSE)).  What it can change -- the network mode, band
+and cell locks, raw AT commands, charging -- can cut the connection, leave the
+modem or the battery in an unexpected state, or void the device's warranty.
+You use it at your own risk; check the local rules for the bands and radio
+settings you choose.
+
 ## License
 
-MIT, see [`LICENSE`](LICENSE).
+MIT, © 2026 Enceka, see [`LICENSE`](LICENSE).
