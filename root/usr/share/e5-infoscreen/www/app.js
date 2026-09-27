@@ -29,7 +29,7 @@ const I18N = {
 		since_boot: '本次开机', network: '网络', clients: '在线设备', battery: '电池',
 		bandwidth: '带宽', neighbours: '邻区', uptime: '开机时长', wan_uptime: '联网时长',
 		load: '负载', memory: '内存', brightness: '亮度', reconnect: '重新连接网络',
-		show_key: '显示密码', hide_key: '隐藏密码', on: '开', off: '关',
+		show_key: '显示密码', hide_key: '隐藏密码', hs_off: '热点已关闭', hs_down: '热点未启动', on: '开', off: '关',
 		connected: '已连接', connecting: '连接中', disconnected: '未连接',
 		no_modem: '无模组', no_sim: '无 SIM 卡', searching: '搜索网络',
 		charging: '充电中', full: '已充满', discharging: '使用电池',
@@ -61,7 +61,7 @@ const I18N = {
 		since_boot: 'Since boot', network: 'Network', clients: 'Clients', battery: 'Battery',
 		bandwidth: 'Bandwidth', neighbours: 'Neighbours', uptime: 'Uptime', wan_uptime: 'Online',
 		load: 'Load', memory: 'Memory', brightness: 'Brightness', reconnect: 'Reconnect',
-		show_key: 'Show key', hide_key: 'Hide key', on: 'On', off: 'Off',
+		show_key: 'Show key', hide_key: 'Hide key', hs_off: 'Hotspot off', hs_down: 'Hotspot not up', on: 'On', off: 'Off',
 		connected: 'Connected', connecting: 'Connecting', disconnected: 'Offline',
 		no_modem: 'No modem', no_sim: 'No SIM', searching: 'Searching',
 		charging: 'Charging', full: 'Full', discharging: 'On battery',
@@ -276,6 +276,7 @@ async function renderHotspot(st) {
 		wifiPending = null;
 
 	$('hs-qr').classList.toggle('off', !(w.enabled && w.up));
+	$('hs-qr').dataset.off = w.enabled ? t('hs_down') : t('hs_off');
 	if (w.ssid && qrFor !== w.ssid) {
 		qrFor = w.ssid;
 		try {
