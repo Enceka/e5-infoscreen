@@ -93,6 +93,7 @@ html, body {
 .label { flex-shrink: 0; }
 /* long values (addresses, versions, firmware) wrap instead of ending in "..." */
 .value { text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.value.one { white-space: nowrap; }   /* short lines that must not break (the battery) */
 .value.strong { font-weight: bold; text-align: left; font-size: 17px; }
 .value.small, .small { font-size: 12px; }
 .sub { color: var(--dim); font-size: 12px; }

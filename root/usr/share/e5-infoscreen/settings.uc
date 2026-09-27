@@ -408,6 +408,17 @@ function system_section() {
 	return name;
 }
 
+// when the image was built, in the device's time zone: /etc/e5/build-time
+// (e5-linux's build-rootfs.sh writes it), else when its version file was
+// written -- the same moment, for an image from before the file
+function build_time() {
+	let t = +(ctx.read_trim('/etc/e5/build-time') ?? '');
+	if (!t) t = require('fs').stat('/etc/e5/image-version')?.mtime;
+	if (!t) return null;
+	let lt = localtime(t);
+	return sprintf('%04d-%02d-%02d %02d:%02d', lt.year, lt.mon, lt.mday, lt.hour, lt.min);
+}
+
 const system_cat = {
 	id: 'system', label: L('系统', 'System'),
 	items: function() {
@@ -420,6 +431,7 @@ const system_cat = {
 			{ id: 'clock_seconds', type: 'toggle', label: L('时间显示秒', 'Clock with seconds'),
 			  value: ctx.uci().get('e5-infoscreen', 'main', 'clock_seconds') == '1' },
 			{ id: 'version', type: 'info', label: L('镜像版本', 'Image'), value: ctx.read_trim('/etc/e5/image-version') ?? '--' },
+			{ id: 'built', type: 'info', label: L('构建时间', 'Built'), value: build_time() ?? '--' },
 			{ id: 'traffic_clear', type: 'action', label: L('清空流量记录', 'Clear traffic records'), confirm: true,
 			  note: L('今日、本月和每日的统计都从零开始', 'Today, this month and the days start from zero') },
 			{ id: 'reboot', type: 'action', label: L('重启', 'Reboot'), confirm: true },

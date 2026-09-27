@@ -28,7 +28,7 @@ const I18N = {
 		idle_reg: '未注册', denied: '被拒绝',
 		since_boot: '本次开机', network: '网络', clients: '在线设备', battery: '电池',
 		bandwidth: '带宽', neighbours: '邻区', uptime: '开机时长', wan_uptime: '联网时长',
-		load: '负载', memory: '内存', subscribed: '签约速率', volume: '音量', muted: '静音',
+		load: '负载', memory: '内存', subscribed: '签约速率', volume: '音量', muted: '静音', paused_short: '暂停',
 		bluetooth: '蓝牙', bt_none: '没有蓝牙适配器', bt_scan: '搜索设备', bt_scanning: '正在搜索…', bt_name: '本机名称', bt_mine: '我的设备', bt_found: '附近的设备', bt_none_found: '没有找到设备，点“搜索设备”', bt_note: '耳机或音箱请先进入配对模式；连接后声音从蓝牙播放', bt_state: '状态', bt_connect: '连接', bt_pair: '配对并连接', bt_disconnect: '断开', bt_remove: '忘记此设备', bt_connected: '已连接', bt_paired: '已配对', bt_pairing: '配对中…', bt_connecting: '连接中…', bt_failed: '连接失败', bt_notfound: '没有找到设备：请让它进入配对模式后再试', bt_forgot: '设备已忘记配对：请让它进入配对模式后再连接', bt_noanswer: '设备没有响应：请打开耳机盒、戴上耳机，并确认它没有连着手机', brightness: '亮度', reconnect: '重新连接网络',
 		show_key: '显示密码', hide_key: '隐藏密码', hs_off: '热点已关闭', hs_down: '热点未启动', on: '开', off: '关',
 		connected: '已连接', connecting: '连接中', disconnected: '未连接',
@@ -61,7 +61,7 @@ const I18N = {
 		idle_reg: 'Not registered', denied: 'Denied',
 		since_boot: 'Since boot', network: 'Network', clients: 'Clients', battery: 'Battery',
 		bandwidth: 'Bandwidth', neighbours: 'Neighbours', uptime: 'Uptime', wan_uptime: 'Online',
-		load: 'Load', memory: 'Memory', subscribed: 'Subscribed rate', volume: 'Volume', muted: 'Muted',
+		load: 'Load', memory: 'Memory', subscribed: 'Subscribed rate', volume: 'Volume', muted: 'Muted', paused_short: 'paused',
 		bluetooth: 'Bluetooth', bt_none: 'No Bluetooth adapter', bt_scan: 'Search', bt_scanning: 'Searching…', bt_name: 'Name', bt_mine: 'My devices', bt_found: 'Nearby', bt_none_found: 'Nothing found; press Search', bt_note: 'Put headphones or a speaker in pairing mode first; once connected the sound plays there', bt_state: 'State', bt_connect: 'Connect', bt_pair: 'Pair and connect', bt_disconnect: 'Disconnect', bt_remove: 'Forget', bt_connected: 'Connected', bt_paired: 'Paired', bt_pairing: 'Pairing…', bt_connecting: 'Connecting…', bt_failed: 'Failed', bt_notfound: 'Not found: put it in pairing mode and try again', bt_forgot: 'The device forgot the pairing: put it in pairing mode and connect again', bt_noanswer: 'No answer: take the earbuds out of the case and make sure no phone is connected to them', brightness: 'Brightness', reconnect: 'Reconnect',
 		show_key: 'Show key', hide_key: 'Hide key', hs_off: 'Hotspot off', hs_down: 'Hotspot not up', on: 'On', off: 'Off',
 		connected: 'Connected', connecting: 'Connecting', disconnected: 'Offline',
@@ -216,7 +216,7 @@ function batteryText(b) {
 	// stopped by the charge limit: say so -- the gauge itself reads "Full" at
 	// 100 % or "Not charging", neither of which tells why
 	if (b.paused && b.online)
-		return `${b.capacity}% · ${t('charge_paused')}${b.limit != null ? ` · ${t('limit')} ${b.limit}%` : ''}`;
+		return `${b.capacity}% · ${t('paused_short')}${b.limit != null ? ` · ${t('limit')} ${b.limit}%` : ''}`;
 	const s = { Charging: t('charging'), Full: t('full'), Discharging: t('discharging'), 'Not charging': t('full') }[b.status] ?? '';
 	return b.capacity + '%' + (s ? ' · ' + s : '');
 }
