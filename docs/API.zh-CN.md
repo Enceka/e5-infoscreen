@@ -39,6 +39,8 @@
 | `POST /backlight` | `{ level: 0-255, save: bool }`；`save` 表示把它作为亮屏时恢复的亮度 |
 | `POST /wan-reconnect` | 重新建立移动网络连接 |
 | `GET /advanced` | 设备、基带、锁定、SIM 的详细信息（“高级信息”页） |
+| `GET /volume` | `{ available, level, max, card }`：扬声器音量（e5-linux 的 `e5-volume`），0 为静音，最大 `max`（15）；没有该程序时 `available: false` |
+| `POST /volume` | `{ step: 1\|-1 }` 或 `{ level }`，音量键加 `tick: true` 会在新音量播放提示音，返回同 `GET` |
 | `GET /identity` | `{ imei, iccid, imsi, numbers[] }` |
 | `POST /at` | `{ cmd, timeout }`，返回 `{ ok, reply }` 或 `{ ok: false, error }`；对可能让 CP 的 AT 服务（`ATZ`、`AT&F`、`+CPMS=`）或 SIM 卡（`+CFUN=0`、`+SFUN=3`/`5`）直到重启都不可用的指令，额外返回 `warning: true`（e5-linux 的 `e5-at` 同样只是提醒，不再拒绝任何指令）：通过 ModemManager（AT 通道唯一的所有者）发一条 AT 指令，`timeout` 为 1-60 秒（默认 10）。这是原始的指令通道，回复里可能含有识别码。 |
 | `GET /at/presets` | `{ presets: [ { cmd, label } ] }`，即“高级 → AT 指令”页的只读指令 |
@@ -78,7 +80,7 @@
 | `back` | 返回（`KEY_BACK` + BackSpace，一次按下） | SDK 会把这一对合并成一次 |
 | `digit` | `0`-`9`、`*` | `key` 里是对应字符 |
 | `power` | 电源（`PowerOff`） | 始终归主程序：关屏 |
-| `other` | 侧键（`F1`）、音量等 | 音量键保留给音量 |
+| `other` | 侧键（`F1`）、音量等 | 音量加/减（`AudioVolumeUp`/`AudioVolumeDown`）始终归主程序：调节扬声器音量 |
 
 ## 5. 插件
 

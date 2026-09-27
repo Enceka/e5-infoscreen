@@ -1185,6 +1185,20 @@ global.handle_request = function(env) {
 			system('(ifup wan) >/dev/null 2>&1 &');
 			return reply_json(200, { ok: true });
 		}
+		if (path == '/volume') {
+			// e5-linux's e5-volume: {"level":N,"max":15,"card":bool}
+			if (system('[ -x /usr/libexec/e5-volume ]') != 0)
+				return reply_json(200, { available: false });
+			let arg = '', b = post ? read_body(env) : {};
+			if (post) {
+				arg = (b.level != null) ? `set ${int(b.level)}` : (+b.step > 0) ? 'up' : (+b.step < 0) ? 'down' : '';
+			}
+			let r = json(trim(sh(`/usr/libexec/e5-volume ${arg} 2>/dev/null`) ?? '') || 'null');
+			// the volume keys' tick, at the new level (e5-audio.main.key_tick)
+			if (post && b.tick && cursor().get('e5-audio', 'main', 'key_tick') != '0')
+				system('/usr/libexec/e5-volume play tick >/dev/null 2>&1');
+			return reply_json(200, { available: true, ...(r ?? {}) });
+		}
 		if (post && path == '/key')
 			return reply_json(200, { ok: log_key(read_body(env)) });
 		return reply_json(404, { error: 'not found' });

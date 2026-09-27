@@ -341,7 +341,9 @@ const charge = uci_category('charge', L('充电', 'Charging'), [
 
 const notify = uci_category('notify', L('通知', 'Notifications'), [
 	{ id: 'vibrate', type: 'toggle', uci: 'e5-notify.sms.vibrate', default: '1', label: L('短信震动', 'Vibrate on SMS') },
-	{ id: 'screen', type: 'toggle', uci: 'e5-notify.sms.screen', default: '1', label: L('短信亮屏', 'Light up on SMS') }
+	{ id: 'screen', type: 'toggle', uci: 'e5-notify.sms.screen', default: '1', label: L('短信亮屏', 'Light up on SMS') },
+	{ id: 'sound', type: 'toggle', uci: 'e5-notify.sms.sound', default: '0', label: L('短信提示音', 'Sound on SMS'),
+	  note: L('按“声音”里的音量播放', 'At the volume set under Sound') }
 ], function() {
 	return [ { id: 'test', type: 'action', label: L('试一下震动', 'Test the vibration') } ];
 }, function(item, value) {
@@ -349,6 +351,22 @@ const notify = uci_category('notify', L('通知', 'Notifications'), [
 	ctx.run('(e5-sms-notify test) >/dev/null 2>&1 &');
 	return null;
 });
+
+// the speaker (e5-linux's e5-audio and e5-volume): shown when it is there
+const sound = uci_category('sound', L('声音', 'Sound'), [
+	{ id: 'volume', type: 'number', uci: 'e5-audio.main.volume', default: '10', min: 0, max: 15, step: 1,
+	  raw_min: 0, raw_max: 15, label: L('音量', 'Volume'), apply: '/usr/libexec/e5-volume apply',
+	  note: L('音量键也可以调节；0 为静音', 'The volume keys change it too; 0 is mute') },
+	{ id: 'key_tick', type: 'toggle', uci: 'e5-audio.main.key_tick', default: '1',
+	  label: L('按音量键时提示音', 'Tick on the volume keys') }
+], function() {
+	return [ { id: 'test', type: 'action', label: L('播放测试音', 'Play a test sound') } ];
+}, function(item, value) {
+	if (item != 'test') return 'no such setting';
+	ctx.run('/usr/libexec/e5-volume play beep >/dev/null 2>&1');
+	return null;
+});
+const has_sound = ctx.run('[ -x /usr/libexec/e5-volume ]') == 0;
 
 const screen = uci_category('screen', L('屏幕', 'Screen'), [
 	// shown in percent, stored as the backlight level 1-255
@@ -472,6 +490,6 @@ const about = {
 // (the AT page is its own view as well: /api/at, /api/at/presets)
 return [ network, { id: 'at', label: L('AT 指令', 'AT commands'), view: 'at' },
          { id: 'devices', label: L('设备管理', 'Devices'), view: 'devices' },
-         charge, notify, screen, system_cat, about ];
+         charge, notify, ...(has_sound ? [ sound ] : []), screen, system_cat, about ];
 
 };

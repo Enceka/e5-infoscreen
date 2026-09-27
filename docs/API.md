@@ -47,6 +47,8 @@ for version 1 of all three.
 | `POST /backlight` | `{ level: 0-255, save: bool }` -- `save` makes it the level the screen comes back to |
 | `POST /wan-reconnect` | restarts the mobile connection |
 | `GET /advanced` | device, baseband, locks, SIM details (the 高级信息 page) |
+| `GET /volume` | `{ available, level, max, card }`: the speaker volume (e5-linux's `e5-volume`), 0 mute - `max` (15); `available: false` without it |
+| `POST /volume` | `{ step: 1\|-1 }` or `{ level }`, and `tick: true` for the volume keys' tick at the new level -> the same as `GET` |
 | `GET /identity` | `{ imei, iccid, imsi, numbers[] }` |
 | `POST /at` | `{ cmd, timeout }` -> `{ ok, reply }` or `{ ok: false, error }`, and `warning: true` for a command that can leave the CP's AT server (`ATZ`, `AT&F`, `+CPMS=`) or the SIM (`+CFUN=0`, `+SFUN=3`/`5`) gone until a reboot (e5-linux's `e5-at` warns the same way; nothing is refused): one AT command through ModemManager (the AT channel's one owner), `timeout` 1-60 s (default 10).  A raw console: its replies can hold identifiers. |
 | `GET /at/presets` | `{ presets: [ { cmd, label } ] }`, the reads of the 高级 -> AT 指令 page |
@@ -117,7 +119,7 @@ The page and the SDK report keys as kinds, measured on the E5's keypad:
 | `back` | back (`KEY_BACK` + BackSpace, one press) | the SDK folds the pair into one |
 | `digit` | `0`-`9`, `*` | `key` has the character |
 | `power` | power (`PowerOff`) | always the host's: screen off |
-| `other` | side key (`F1`), volume, ... | volume is left to the volume |
+| `other` | side key (`F1`), volume, ... | volume up/down (`AudioVolumeUp`/`AudioVolumeDown`) are always the host's: the speaker volume |
 
 ## 5. Plugins
 

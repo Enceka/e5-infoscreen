@@ -172,6 +172,9 @@ html, body {
 .strow:focus { box-shadow: 0 0 0 2px var(--focus); }
 .strow.info { display: flex; }
 .strow .sv { color: var(--dim); font-size: 13px; text-align: right; min-width: 0; overflow-wrap: anywhere; max-width: 60%; }
+.strow.wide { flex-direction: column; align-items: flex-start; gap: 3px; }
+.strow.wide .sv { max-width: 100%; text-align: left; }
+.strow .sv, .stnote { text-wrap: pretty; }
 .strow .sv.on { color: var(--good); }
 .strow .chev::after { content: "›"; color: var(--dim); margin-left: 4px; }
 .strow.armed { background: #5a2420; }
@@ -240,6 +243,18 @@ body.blank #blank { display: block; }
 	font-size: 13px; opacity: 0; transition: opacity 0.2s; z-index: 5; pointer-events: none;
 }
 #toast.show { opacity: 1; }
+
+/* the volume keys' level, over the page for a moment */
+#vol-osd {
+	position: fixed; left: 50%; top: 64px; transform: translateX(-50%); width: 240px;
+	display: flex; align-items: center; gap: 8px;
+	background: #000d; color: var(--text); padding: 10px 12px; border-radius: 10px;
+	font-size: 14px; opacity: 0; transition: opacity 0.2s; z-index: 6; pointer-events: none;
+}
+#vol-osd.show { opacity: 1; }
+#vol-osd .track { flex: 1; height: 6px; }
+#vol-osd .track div { background: var(--accent); transition: width 0.15s; }
+#vol-n { min-width: 30px; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* touch off (高级 -> 屏幕 -> 触摸): nothing takes a touch, a plugin's frame neither */
 body.notouch, body.notouch * { pointer-events: none !important; }

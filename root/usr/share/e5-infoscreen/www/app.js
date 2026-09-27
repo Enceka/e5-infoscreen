@@ -28,7 +28,7 @@ const I18N = {
 		idle_reg: '未注册', denied: '被拒绝',
 		since_boot: '本次开机', network: '网络', clients: '在线设备', battery: '电池',
 		bandwidth: '带宽', neighbours: '邻区', uptime: '开机时长', wan_uptime: '联网时长',
-		load: '负载', memory: '内存', subscribed: '签约速率', brightness: '亮度', reconnect: '重新连接网络',
+		load: '负载', memory: '内存', subscribed: '签约速率', volume: '音量', muted: '静音', brightness: '亮度', reconnect: '重新连接网络',
 		show_key: '显示密码', hide_key: '隐藏密码', hs_off: '热点已关闭', hs_down: '热点未启动', on: '开', off: '关',
 		connected: '已连接', connecting: '连接中', disconnected: '未连接',
 		no_modem: '无模组', no_sim: '无 SIM 卡', searching: '搜索网络',
@@ -60,7 +60,7 @@ const I18N = {
 		idle_reg: 'Not registered', denied: 'Denied',
 		since_boot: 'Since boot', network: 'Network', clients: 'Clients', battery: 'Battery',
 		bandwidth: 'Bandwidth', neighbours: 'Neighbours', uptime: 'Uptime', wan_uptime: 'Online',
-		load: 'Load', memory: 'Memory', subscribed: 'Subscribed rate', brightness: 'Brightness', reconnect: 'Reconnect',
+		load: 'Load', memory: 'Memory', subscribed: 'Subscribed rate', volume: 'Volume', muted: 'Muted', brightness: 'Brightness', reconnect: 'Reconnect',
 		show_key: 'Show key', hide_key: 'Hide key', hs_off: 'Hotspot off', hs_down: 'Hotspot not up', on: 'On', off: 'Off',
 		connected: 'Connected', connecting: 'Connecting', disconnected: 'Offline',
 		no_modem: 'No modem', no_sim: 'No SIM', searching: 'Searching',
@@ -392,6 +392,25 @@ function post(path, body) {
 	}).then((r) => r.json()).catch(() => null);
 }
 
+// the volume keys: one step, a tick at the new level (e5-audio.main.key_tick)
+// and, with the screen lit, the level over the page for a moment
+let volTimer = null, volBusy = false;
+async function volumeKey(step) {
+	if (volBusy) return;                 // (held down: one request at a time)
+	volBusy = true;
+	const r = await post('volume', { step, tick: true });
+	volBusy = false;
+	if (!r || !r.available) return;
+	if (blank) return;
+	resetIdle();
+	const osd = $('vol-osd');
+	setText('vol-n', r.level > 0 ? String(r.level) : t('muted'));
+	$('vol-bar').style.width = Math.round(r.level / (r.max || 15) * 100) + '%';
+	osd.classList.add('show');
+	clearTimeout(volTimer);
+	volTimer = setTimeout(() => osd.classList.remove('show'), 1500);
+}
+
 function toast(msg) {
 	const el = $('toast');
 	el.textContent = msg;
@@ -476,12 +495,13 @@ function moveFocus(dir) {
 // the keypad, by what WebKit reports for it (measured with the key log,
 // /api/key).  The confirm key is KEY_SELECT, which WebKit has no name for: it
 // arrives as "Unidentified" with keyCode 0.  The power key is "PowerOff"; the
-// side key is F1.  The volume keys are left alone: they are for the volume.
+// side key is F1.  The volume keys change the speaker volume (volumeKey).
 function keyKind(e) {
 	const k = e.key, c = e.keyCode;
 	if (k == 'Unidentified' && c == 0) return 'ok';
 	if (k == 'F1' || c == 112) return 'hotspot';
-	if (k == 'AudioVolumeUp' || k == 'AudioVolumeDown' || c == 174 || c == 175) return 'volume';
+	if (k == 'AudioVolumeUp' || c == 175) return 'volup';
+	if (k == 'AudioVolumeDown' || c == 174) return 'voldown';
 	if (k == 'ArrowLeft' || c == 37) return 'left';
 	if (k == 'ArrowRight' || c == 39) return 'right';
 	if (k == 'ArrowUp' || c == 38) return 'up';
@@ -512,6 +532,11 @@ document.addEventListener('keydown', (e) => {
 		lastBack = now;
 	}
 	e.preventDefault();
+	// the volume works with the screen dark too, and does not light it
+	if (kind == 'volup' || kind == 'voldown') {
+		volumeKey(kind == 'volup' ? 1 : -1);
+		return;
+	}
 	if (blank) {
 		setBlank(false);
 		return;
@@ -891,7 +916,10 @@ function stValue(it) {
 
 function stRow(key, label, value, opts = {}) {
 	const tag = opts.info ? 'div' : 'button';
-	return `<${tag} class="strow${opts.info ? ' info' : ''}" data-st="${esc(key)}">` +
+	// a long read-only value gets a line of its own under the label, instead of
+	// wrapping in the right-hand column (one character left on a line)
+	const wide = opts.info && String(value ?? '').length > 12;
+	return `<${tag} class="strow${opts.info ? ' info' : ''}${wide ? ' wide' : ''}" data-st="${esc(key)}">` +
 		`<span>${esc(label)}</span><span class="sv${opts.on ? ' on' : ''}${opts.chev ? ' chev' : ''}">${esc(value)}</span></${tag}>` +
 		(opts.note ? `<div class="stnote">${esc(opts.note)}</div>` : '');
 }
@@ -1188,6 +1216,10 @@ window.addEventListener('message', (e) => {
 	if (!appOpen || !m || typeof m != 'object' || e.source !== $('app-frame').contentWindow) return;
 	switch (m.e5) {
 	case 'key':                     // every key the plugin sees, for the host's own keys
+		if (m.key == 'AudioVolumeUp' || m.keyCode == 175 || m.key == 'AudioVolumeDown' || m.keyCode == 174) {
+			volumeKey(m.key == 'AudioVolumeUp' || m.keyCode == 175 ? 1 : -1);
+			return;
+		}
 		if (blank) { setBlank(false); toApp({ e5: 'blank', on: false }); return; }
 		resetIdle();
 		if (m.kind == 'power' && !m.repeat) { setBlank(true); toApp({ e5: 'blank', on: true }); }
