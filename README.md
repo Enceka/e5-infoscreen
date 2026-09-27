@@ -11,12 +11,12 @@ device at a glance, and is driven by touch and by the keypad.
 |---|---|
 | Overview | download/upload rate, traffic since boot, network state (5G/4G, IPv4/IPv6), hotspot, clients, battery, battery current (+ charging, - discharging) and voltage |
 | Signal | technology and band (n41, B3, ...), RSRP/RSRQ/SINR with grades, PCI, ARFCN, bandwidth, neighbour cells |
-| Traffic | today's and this month's download/upload, since boot, the last 7 days (vnstat on the modem's interface, kept in `/etc/vnstat`) |
+| Traffic | today's and this month's download/upload, WAN (the modem's interface, what the carrier counts) and LAN (the bridge of USB and hotspot) apart; since boot and the last 7 days for the WAN (vnstat, kept in `/etc/vnstat`; 高级 -> 系统 clears it) |
 | SMS | the received messages, newest first, unread ones marked; open one to read it, delete it (press twice) |
 | Hotspot | SSID, a QR code to join, the passphrase on request, on/off, the clients (Wi-Fi and USB) |
 | Device | battery, uptime, time online, load, memory, LAN/IPv4/IPv6 addresses, brightness, reconnect |
 | Details (高级信息) | device (system, image, kernel, storage, temperature, battery voltage); baseband (model, firmware, 5G SA, modes); band locks (LTE, NR) and cell locks, decoded from `AT+SPLBAND` / `AT+SPFORCEFRQ`; SIM (active slot, operator, registration); the identifiers on request |
-| Settings (高级) | by function: **network** (network mode 5G/4G/3G, 5G/4G, 5G only (SA), 4G only; 5G access SA + NSA or NSA only; APN switch; LTE/NR band lock, default bands, cell lock; reconnect), **devices** (block internet, kick off Wi-Fi), **charging** (limit, resume level, charge to full once -- e5-linux's `e5-charge`), **notifications** (SMS vibration, light up), **screen** (brightness, screen-off time, touch on/off, language), **system** (time zone, clock with seconds, reboot, boot Debian or Android once), and each plugin's settings |
+| Settings (高级) | by function: **network** (network mode 5G/4G/3G, 5G/4G, 5G only (SA), 4G only; 5G access SA + NSA or NSA only; APN switch; LTE/NR band lock, default bands, cell lock; reconnect), **devices** (block internet, kick off Wi-Fi), **charging** (limit, resume level, charge to full once -- e5-linux's `e5-charge`), **notifications** (SMS vibration, light up), **screen** (brightness, screen-off time, touch on/off, language), **system** (time zone, clock with seconds, clear traffic records, reboot, boot Debian or Android once), and each plugin's settings |
 | Apps | the installed plugins; two come with it, a calculator and a network test |
 
 The status bar carries the operator, the technology, signal bars, the battery

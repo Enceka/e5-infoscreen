@@ -73,20 +73,22 @@
 	<section class="page" data-title="traffic">
 		<div class="card">
 			<div class="lh"><span data-t="today"></span></div>
-			<div class="tr"><span class="arrow">↓</span><span id="tf-day-rx" class="mid">--</span><span class="arrow up">↑</span><span id="tf-day-tx" class="mid">--</span></div>
+			<div class="tr"><span class="lbl2" data-t="wan"></span><span class="arrow">↓</span><span id="tf-day-rx" class="mid">--</span><span class="arrow up">↑</span><span id="tf-day-tx" class="mid">--</span></div>
+			<div class="tr"><span class="lbl2" data-t="lan"></span><span class="arrow">↓</span><span id="tf-day-lan-rx" class="mid">--</span><span class="arrow up">↑</span><span id="tf-day-lan-tx" class="mid">--</span></div>
 			<div id="tf-day-since" class="sub"></div>
 		</div>
 		<div class="card">
 			<div class="lh"><span data-t="this_month"></span></div>
-			<div class="tr"><span class="arrow">↓</span><span id="tf-mon-rx" class="mid">--</span><span class="arrow up">↑</span><span id="tf-mon-tx" class="mid">--</span></div>
+			<div class="tr"><span class="lbl2" data-t="wan"></span><span class="arrow">↓</span><span id="tf-mon-rx" class="mid">--</span><span class="arrow up">↑</span><span id="tf-mon-tx" class="mid">--</span></div>
+			<div class="tr"><span class="lbl2" data-t="lan"></span><span class="arrow">↓</span><span id="tf-mon-lan-rx" class="mid">--</span><span class="arrow up">↑</span><span id="tf-mon-lan-tx" class="mid">--</span></div>
 			<div id="tf-mon-since" class="sub"></div>
 		</div>
 		<div class="card">
-			<div class="lh"><span data-t="since_boot"></span></div>
+			<div class="lh"><span data-t="since_boot"></span> · <span data-t="wan"></span></div>
 			<div class="tr"><span class="arrow">↓</span><span id="tf-boot-rx" class="mid">--</span><span class="arrow up">↑</span><span id="tf-boot-tx" class="mid">--</span></div>
 		</div>
 		<div class="card">
-			<div class="lh"><span data-t="last_days"></span></div>
+			<div class="lh"><span data-t="last_days"></span> · <span data-t="wan"></span></div>
 			<div id="tf-days" class="days"></div>
 		</div>
 	</section>

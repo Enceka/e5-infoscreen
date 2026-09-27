@@ -29,7 +29,7 @@
 | 接口 | 返回 / 作用 |
 |---|---|
 | `GET /status` | 各页面显示的全部数据，页面每 2 秒读一次（见下） |
-| `GET /traffic` | `{ available, today, month, total, days[] }`，每项 `{ rx, tx }`，单位字节（vnstat，模组的数据接口）；`days` 是最近 7 天，`{ date: "MM-DD", rx, tx }` |
+| `GET /traffic` | `{ wan, lan }`，各为 `{ available, since, today, month, total, days[] }`，其中 `{ rx, tx }` 单位字节（vnstat；`wan` 为模组数据接口，`lan` 为局域网网桥）；`days` 是最近 7 天，`{ date: "MM-DD", rx, tx }`；`since` 为开始统计的时间。`wan` 的字段在顶层也有一份。 |
 | `GET /sms` | `{ messages: [ { id, number, text, time, state, type, unread } ] }`，新的在前；`time` 为 ISO 8601 |
 | `POST /sms-read` | 全部标为已读（清空未读列表） |
 | `POST /sms-delete` | `{ id }`，从 SIM 卡/模组删除该短信 |
@@ -141,6 +141,7 @@ manifest 的 `id`。复制目录即安装，删除目录即卸载，不需要重
 | `e5.toast(文字)` | 在屏幕上显示一条短消息 |
 | `e5.keepAwake(on)` | `true`：插件打开期间屏幕不自动熄灭（计时器、测试进行中等）；结束后设回 `false` |
 | `e5.exit()` | 关闭插件 |
+| `e5.press(el)` | 由按键触发点击 `el`。触摸关闭时（高级 → 屏幕 → 触摸），SDK 会丢弃所有触摸和点击（WebKit 在轻触后自己合成的点击是 untrusted 的，无法区分），只有这种点击能通过。 |
 | `e5.t({ zh, en })` | 按屏幕语言取文字 |
 | `e5.tzOffset`、`e5.time(ms)` | 设备相对 UTC 的偏移（秒）；把时间格式化为设备时区的 `HH:MM:SS`。OpenWrt 上 WebKit 没有时区数据，`Date` 的本地时间就是 UTC，请用这两个（或 `/status` 里的 `tz_offset`）。 |
 
@@ -152,7 +153,7 @@ manifest 的 `id`。复制目录即安装，删除目录即卸载，不需要重
 插件 → 主程序：`{ e5: "ready" }`、`{ e5: "key", kind, key, code, keyCode, repeat }`（每次按键
 都要发，主程序据此点亮屏幕、重置息屏计时）、`{ e5: "exit" }`、`{ e5: "toast", text }`、
 `{ e5: "keep-awake", on }`；
-主程序 → 插件：`{ e5: "hello", lang, api_version, blank }`、`{ e5: "blank", on }`。
+主程序 → 插件：`{ e5: "hello", lang, api_version, blank, tz_offset, touch }`、`{ e5: "blank", on }`、`{ e5: "touch", on }`。
 
 ### 5.4 后端
 

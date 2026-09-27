@@ -513,9 +513,10 @@ function sms_delete(id) {
 
 /* ---------- traffic ---------- */
 
-// vnstat's day and month counters for the modem's interface (bytes)
-function traffic_usage() {
-	let v = sh_json(`vnstat --json -i ${WAN_DEV} 2>/dev/null`);
+// vnstat's day and month counters (bytes): wan = the modem's interface,
+// lan = the bridge of the USB port and the hotspot
+function traffic_iface(dev) {
+	let v = sh_json(`vnstat --json -i ${dev} 2>/dev/null`);
 	let tr = v?.interfaces?.[0]?.traffic;
 	if (!tr)
 		return { available: false };
@@ -538,6 +539,12 @@ function traffic_usage() {
 		total: { rx: tr.total?.rx ?? 0, tx: tr.total?.tx ?? 0 },
 		days
 	};
+}
+
+function traffic_usage() {
+	let wan = traffic_iface(WAN_DEV);
+	// (the WAN's fields at the top level too, as in the first version)
+	return { ...wan, wan, lan: traffic_iface('br-lan') };
 }
 
 /* ---------- advanced ---------- */

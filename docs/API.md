@@ -37,7 +37,7 @@ for version 1 of all three.
 | Endpoint | Returns / does |
 |---|---|
 | `GET /status` | everything the pages show, polled every 2 s (below) |
-| `GET /traffic` | `{ available, today, month, total, days[] }`, each `{ rx, tx }` in bytes (vnstat, the modem's interface); `days` the last 7, `{ date: "MM-DD", rx, tx }` |
+| `GET /traffic` | `{ wan, lan }`, each `{ available, since, today, month, total, days[] }` with `{ rx, tx }` in bytes (vnstat; `wan` the modem's interface, `lan` the LAN bridge); `days` the last 7, `{ date: "MM-DD", rx, tx }`; `since` when counting began.  The `wan` fields are also at the top level. |
 | `GET /sms` | `{ messages: [ { id, number, text, time, state, type, unread } ] }`, newest first; `time` ISO 8601 |
 | `POST /sms-read` | all messages seen (clears the unread list) |
 | `POST /sms-delete` | `{ id }` -- deletes the message from the SIM/modem |
@@ -175,6 +175,7 @@ footer below: about 320×424 CSS pixels).  Load the SDK first:
 | `e5.toast(text)` | a short message over the screen |
 | `e5.keepAwake(on)` | `true`: the screen does not go dark while the plugin is open (a timer, a test running); set it back to `false` |
 | `e5.exit()` | close the plugin |
+| `e5.press(el)` | click `el` from a key.  With touch off (高级 -> 屏幕 -> 触摸) the SDK drops every touch and every click -- WebKit's own click after a tap is untrusted, so it cannot be told apart -- except these. |
 | `e5.t({ zh, en })` | the text in the screen's language |
 | `e5.tzOffset`, `e5.time(ms)` | the device's offset from UTC (s); a time as `HH:MM:SS` in the device's zone.  WebKit has no zoneinfo on OpenWrt, so `Date`'s local time is UTC: use these (or `tz_offset` from `/status`). |
 
@@ -187,7 +188,7 @@ Without the SDK, the protocol is `postMessage` with the parent frame:
 plugin -> host `{ e5: "ready" }`, `{ e5: "key", kind, key, code, keyCode, repeat }`
 (every key, so the host can wake the screen and reset its idle timer),
 `{ e5: "exit" }`, `{ e5: "toast", text }`, `{ e5: "keep-awake", on }`;
-host -> plugin `{ e5: "hello", lang, api_version, blank }`, `{ e5: "blank", on }`.
+host -> plugin `{ e5: "hello", lang, api_version, blank, tz_offset, touch }`, `{ e5: "blank", on }`, `{ e5: "touch", on }`.
 
 ### 5.4 Backend
 

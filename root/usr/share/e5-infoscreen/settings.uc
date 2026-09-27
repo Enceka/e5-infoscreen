@@ -394,6 +394,8 @@ const system_cat = {
 			{ id: 'clock_seconds', type: 'toggle', label: L('时间显示秒', 'Clock with seconds'),
 			  value: ctx.uci().get('e5-infoscreen', 'main', 'clock_seconds') == '1' },
 			{ id: 'version', type: 'info', label: L('镜像版本', 'Image'), value: ctx.read_trim('/etc/e5/image-version') ?? '--' },
+			{ id: 'traffic_clear', type: 'action', label: L('清空流量记录', 'Clear traffic records'), confirm: true,
+			  note: L('今日、本月和每日的统计都从零开始', 'Today, this month and the days start from zero') },
 			{ id: 'reboot', type: 'action', label: L('重启', 'Reboot'), confirm: true },
 			{ id: 'debian_once', type: 'action', label: L('下次启动 Debian', 'Boot Debian once'), confirm: true,
 			  note: L('重启进 Debian 一次，再重启回到 OpenWrt', 'One boot of Debian, then OpenWrt again') },
@@ -420,6 +422,11 @@ const system_cat = {
 			let c = ctx.uci();
 			c.set('e5-infoscreen', 'main', 'clock_seconds', value ? '1' : '0');
 			c.commit('e5-infoscreen');
+			return null;
+		}
+		if (id == 'traffic_clear') {
+			// a new, empty database: vnstat adds the configured interfaces again
+			ctx.run('/etc/init.d/vnstat stop >/dev/null 2>&1; rm -f /etc/vnstat/vnstat.db; /etc/init.d/vnstat start >/dev/null 2>&1');
 			return null;
 		}
 		if (id == 'reboot') { ctx.run('(sleep 2; reboot) >/dev/null 2>&1 &'); return null; }

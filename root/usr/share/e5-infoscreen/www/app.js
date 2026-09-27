@@ -18,7 +18,7 @@ const I18N = {
 		online: '在线', offline: '离线', blocked: '已禁止上网', block: '禁止上网', unblock: '允许上网',
 		kick: '踢下 Wi-Fi', kicked: '已踢下线', mac: 'MAC', via: '连接', no_devices: '没有设备',
 		loading: '读取中…', app_settings: '应用设置', current_voltage: '电流 / 电压',
-		charge_paused: '已暂停充电', limit: '上限', system: '系统', image: '镜像版本', kernel: '内核',
+		charge_paused: '已暂停充电', limit: '上限', wan: '外网', lan: '内网', system: '系统', image: '镜像版本', kernel: '内核',
 		storage: '存储', temperature: '温度', baseband: '基带', modes: '网络模式',
 		locks: '锁定', lte_bands: 'LTE 频段', nr_bands: 'NR 频段', cell_lock: '锁小区',
 		not_locked: '未锁定', slot: '卡槽', operator: '运营商', registration: '注册',
@@ -49,7 +49,7 @@ const I18N = {
 		online: 'Online', offline: 'Offline', blocked: 'Blocked', block: 'Block internet', unblock: 'Allow internet',
 		kick: 'Kick off Wi-Fi', kicked: 'Kicked', mac: 'MAC', via: 'Via', no_devices: 'No devices',
 		loading: 'Loading…', app_settings: 'App settings', current_voltage: 'Current / voltage',
-		charge_paused: 'Charging paused', limit: 'limit', system: 'System', image: 'Image', kernel: 'Kernel',
+		charge_paused: 'Charging paused', limit: 'limit', wan: 'WAN', lan: 'LAN', system: 'System', image: 'Image', kernel: 'Kernel',
 		storage: 'Storage', temperature: 'Temperature', baseband: 'Baseband', modes: 'Modes',
 		locks: 'Locks', lte_bands: 'LTE bands', nr_bands: 'NR bands', cell_lock: 'Cell lock',
 		not_locked: 'Not locked', slot: 'Slot', operator: 'Operator', registration: 'Registration',
@@ -500,7 +500,7 @@ document.addEventListener('keydown', (e) => {
 	case 'down': moveFocus(1); break;
 	case 'ok':
 		if (document.activeElement && document.activeElement.tagName == 'BUTTON')
-			document.activeElement.click();
+			pressKey(document.activeElement);
 		break;
 	case 'back':
 		if (page == P.sms && smsOpen != null)
@@ -520,18 +520,28 @@ document.addEventListener('keydown', (e) => {
 }, true);
 
 // touch off: every touch, tap and swipe is dropped here, before anything
-// else sees it, and it does not wake the screen either
+// else sees it, and it does not wake the screen either.  WebKit follows a
+// tap with a click it synthesises itself -- isTrusted false -- and its touch
+// hit-testing ignores pointer-events: so every click is dropped, except the
+// ones the keypad's confirm key makes (keyClick).
 function touchOff() { return last?.screen?.touch === false; }
-for (const ev of ['touchstart', 'touchmove', 'touchend', 'mousedown', 'mouseup', 'click'])
-	document.addEventListener(ev, (e) => {
-		if (touchOff() && e.isTrusted) {
+let keyClick = false;
+for (const ev of ['touchstart', 'touchmove', 'touchend', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click'])
+	window.addEventListener(ev, (e) => {
+		if (touchOff() && !(ev == 'click' && keyClick)) {
 			e.preventDefault();
 			e.stopImmediatePropagation();
 		}
 	}, { capture: true, passive: false });
 
+function pressKey(el) {
+	keyClick = true;
+	try { el.click(); } finally { keyClick = false; }
+}
+
 function applyTouch() {
 	document.body.classList.toggle('notouch', touchOff());
+	toApp({ e5: 'touch', on: !touchOff() });
 }
 
 // touch: the first touch on a dark screen wakes it and does nothing else;
@@ -702,6 +712,9 @@ async function loadTraffic() {
 	if (!u || !u.available) return;
 	setText('tf-day-rx', b(u.today.rx)); setText('tf-day-tx', b(u.today.tx));
 	setText('tf-mon-rx', b(u.month.rx)); setText('tf-mon-tx', b(u.month.tx));
+	const l = u.lan?.available ? u.lan : null;
+	setText('tf-day-lan-rx', l ? b(l.today.rx) : '--'); setText('tf-day-lan-tx', l ? b(l.today.tx) : '--');
+	setText('tf-mon-lan-rx', l ? b(l.month.rx) : '--'); setText('tf-mon-lan-tx', l ? b(l.month.tx) : '--');
 	// counting began inside this month (or today): say so, the total is partial
 	const since = u.since ? localParts(u.since * 1000) : null, nowd = localParts();
 	const p2 = (n) => String(n).padStart(2, '0');
@@ -1126,7 +1139,7 @@ window.addEventListener('message', (e) => {
 		resetIdle();
 		break;
 	case 'ready':
-		toApp({ e5: 'hello', lang, api_version: 1, blank, tz_offset: last?.tz_offset ?? 0 });
+		toApp({ e5: 'hello', lang, api_version: 1, blank, tz_offset: last?.tz_offset ?? 0, touch: !touchOff() });
 		break;
 	}
 });

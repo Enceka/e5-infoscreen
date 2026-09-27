@@ -20,6 +20,18 @@
 	let keyFn = null, backFn = null, langFn = null;
 	let blank = false;
 	let lastBack = 0;
+	let touch = true;            // the host's 触摸 setting
+	let keyClick = false;
+
+	// touch off: drop every touch and every click (WebKit's own, after a tap,
+	// is untrusted), except the clicks the plugin makes from a key (e5.press)
+	for (const ev of ['touchstart', 'touchmove', 'touchend', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click'])
+		window.addEventListener(ev, (e) => {
+			if (!touch && !(ev == 'click' && keyClick)) {
+				e.preventDefault();
+				e.stopImmediatePropagation();
+			}
+		}, { capture: true, passive: false });
 
 	function send(msg) {
 		if (window.parent !== window) window.parent.postMessage(msg, '*');
@@ -70,8 +82,10 @@
 		const msg = e.data;
 		if (e.source !== window.parent || !msg || typeof msg != 'object') return;
 		if (msg.e5 == 'blank') blank = !!msg.on;
+		if (msg.e5 == 'touch') touch = msg.on !== false;
 		if (msg.e5 == 'hello') {
 			blank = !!msg.blank;
+			touch = msg.touch !== false;
 			e5.tzOffset = +msg.tz_offset || 0;
 			if (msg.lang && msg.lang != e5.lang) {
 				e5.lang = msg.lang;
@@ -106,6 +120,8 @@
 		onLang: (fn) => { langFn = fn; },
 		toast: (text) => send({ e5: 'toast', text: String(text) }),
 		exit: () => send({ e5: 'exit' }),
+		/* click an element from a key: goes through even when touch is off */
+		press: (el) => { keyClick = true; try { el.click(); } finally { keyClick = false; } },
 		keepAwake: (on) => send({ e5: 'keep-awake', on: !!on }),
 		/* the device's offset from UTC, seconds (WebKit's own zone is UTC here) */
 		tzOffset: 0,
