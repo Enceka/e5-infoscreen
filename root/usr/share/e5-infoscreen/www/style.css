@@ -172,10 +172,13 @@ html, body {
 }
 .strow:focus { box-shadow: 0 0 0 2px var(--focus); }
 .strow.info { display: flex; }
-.strow .sv { color: var(--dim); font-size: 13px; text-align: right; min-width: 0; overflow-wrap: anywhere; max-width: 60%; }
-.strow.wide { flex-direction: column; align-items: flex-start; gap: 3px; }
-.strow.wide .sv { max-width: 100%; text-align: left; }
-.strow .sv, .stnote { text-wrap: pretty; }
+.strow .sv { color: var(--dim); font-size: 13px; text-align: right; min-width: 0; overflow-wrap: anywhere; flex: 1; }
+/* the label at its own width, the value in all the rest of the row: it
+   wraps only when it does not fit, and then evenly (no one character left
+   on a line) */
+.strow > span:first-child { flex-shrink: 0; max-width: 48%; }
+.strow .sv { text-wrap: balance; }
+.stnote { text-wrap: pretty; }
 .strow .sv.on { color: var(--good); }
 .strow .chev::after { content: "›"; color: var(--dim); margin-left: 4px; }
 .strow.armed { background: #5a2420; }

@@ -918,10 +918,7 @@ function stValue(it) {
 
 function stRow(key, label, value, opts = {}) {
 	const tag = opts.info ? 'div' : 'button';
-	// a long read-only value gets a line of its own under the label, instead of
-	// wrapping in the right-hand column (one character left on a line)
-	const wide = opts.info && String(value ?? '').length > 12;
-	return `<${tag} class="strow${opts.info ? ' info' : ''}${wide ? ' wide' : ''}" data-st="${esc(key)}">` +
+	return `<${tag} class="strow${opts.info ? ' info' : ''}" data-st="${esc(key)}">` +
 		`<span>${esc(label)}</span><span class="sv${opts.on ? ' on' : ''}${opts.chev ? ' chev' : ''}">${esc(value)}</span></${tag}>` +
 		(opts.note ? `<div class="stnote">${esc(opts.note)}</div>` : '');
 }
