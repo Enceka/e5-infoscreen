@@ -17,7 +17,7 @@ const I18N = {
 		apply: '应用', clear: '全部取消', save: '保存', saved: '已保存', failed: '失败',
 		online: '在线', offline: '离线', blocked: '已禁止上网', block: '禁止上网', unblock: '允许上网',
 		kick: '踢下 Wi-Fi', kicked: '已踢下线', mac: 'MAC', via: '连接', no_devices: '没有设备',
-		loading: '读取中…', app_settings: '应用设置', system: '系统', image: '镜像版本', kernel: '内核',
+		loading: '读取中…', app_settings: '应用设置', current_voltage: '电流 / 电压', system: '系统', image: '镜像版本', kernel: '内核',
 		storage: '存储', temperature: '温度', baseband: '基带', modes: '网络模式',
 		locks: '锁定', lte_bands: 'LTE 频段', nr_bands: 'NR 频段', cell_lock: '锁小区',
 		not_locked: '未锁定', slot: '卡槽', operator: '运营商', registration: '注册',
@@ -47,7 +47,7 @@ const I18N = {
 		apply: 'Apply', clear: 'Clear all', save: 'Save', saved: 'Saved', failed: 'Failed',
 		online: 'Online', offline: 'Offline', blocked: 'Blocked', block: 'Block internet', unblock: 'Allow internet',
 		kick: 'Kick off Wi-Fi', kicked: 'Kicked', mac: 'MAC', via: 'Via', no_devices: 'No devices',
-		loading: 'Loading…', app_settings: 'App settings', system: 'System', image: 'Image', kernel: 'Kernel',
+		loading: 'Loading…', app_settings: 'App settings', current_voltage: 'Current / voltage', system: 'System', image: 'Image', kernel: 'Kernel',
 		storage: 'Storage', temperature: 'Temperature', baseband: 'Baseband', modes: 'Modes',
 		locks: 'Locks', lte_bands: 'LTE bands', nr_bands: 'NR bands', cell_lock: 'Cell lock',
 		not_locked: 'Not locked', slot: 'Slot', operator: 'Operator', registration: 'Registration',
@@ -230,6 +230,10 @@ function renderOverview(st) {
 	const nw = st.clients.filter((c) => c.via == 'wifi').length, nu = st.clients.filter((c) => c.via == 'usb').length;
 	setText('ov-clients', st.clients.length ? `${st.clients.length}${t('devices')}` + (nw ? ` · ${t('wifi')} ${nw}` : '') + (nu ? ` · ${t('usb')}` : '') : t('none'));
 	setText('ov-bat', batteryText(st.battery));
+	// + charging, - discharging (the fuel gauge's sign)
+	const b = st.battery, ma = b.current_ma;
+	setHTML('ov-power', (ma == null ? '--' : `<span class="${ma > 0 ? 'ok' : ma < 0 ? 'warn' : ''}">${ma > 0 ? '+' : ''}${ma} mA</span>`) +
+		(b.voltage_mv == null ? '' : ` · ${(b.voltage_mv / 1000).toFixed(2)} V`));
 }
 
 function renderSignal(st) {

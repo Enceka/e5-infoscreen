@@ -73,7 +73,7 @@ for version 1 of all three.
   "traffic": { "rx_total": 101641661, "tx_total": 47712286, "rx_rate": 1204.5, "tx_rate": 88.0 },
   "wifi": { "ssid": "E5-Linux", "enabled": true, "up": true, "channel": "149", "band": "5g", "secured": true },
   "clients": [ { "name": "phone", "ip": "192.168.9.12", "mac": "..", "via": "wifi", "signal": -52 } ],
-  "battery": { "capacity": 99, "status": "Charging", "online": true },
+  "battery": { "capacity": 99, "status": "Charging", "current_ma": 194, "voltage_mv": 4350, "online": true },
   "system": { "uptime": 5321, "load": 0.42, "mem_total": 1538670592, "mem_available": 794218496, "lan_ip": "192.168.9.1" },
   "screen": { "idle": 60, "brightness": 120, "lang": "zh" },
   "sms": { "unread": [ 3 ], "screen": true }

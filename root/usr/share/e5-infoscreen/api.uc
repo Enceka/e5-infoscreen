@@ -387,9 +387,14 @@ function clients() {
 
 function battery() {
 	let b = '/sys/class/power_supply/battery/';
+	let cur = read_num(b + 'current_now'), volt = read_num(b + 'voltage_now');
 	return {
 		capacity: read_num(b + 'capacity'),
 		status: read_trim(b + 'status'),
+		// the fuel gauge's own sign (sc27xx_fgu_get_current_now: ADC minus its
+		// zero point): + into the battery, - out of it; µA and µV in sysfs
+		current_ma: (cur == null) ? null : int(cur / 1000),
+		voltage_mv: (volt == null) ? null : int(volt / 1000),
 		online: read_trim('/sys/class/power_supply/usb/online') == '1' ||
 			read_trim('/sys/class/power_supply/ac/online') == '1'
 	};

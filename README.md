@@ -9,7 +9,7 @@ device at a glance, and is driven by touch and by the keypad.
 
 | page | shows |
 |---|---|
-| Overview | download/upload rate, traffic since boot, network state (5G/4G, IPv4/IPv6), hotspot, clients, battery |
+| Overview | download/upload rate, traffic since boot, network state (5G/4G, IPv4/IPv6), hotspot, clients, battery, battery current (+ charging, - discharging) and voltage |
 | Signal | technology and band (n41, B3, ...), RSRP/RSRQ/SINR with grades, PCI, ARFCN, bandwidth, neighbour cells |
 | Traffic | today's and this month's download/upload, since boot, the last 7 days (vnstat on the modem's interface, kept in `/etc/vnstat`) |
 | SMS | the received messages, newest first, unread ones marked; open one to read it, delete it (press twice) |
