@@ -35,6 +35,10 @@ on_term() {
 trap on_term TERM INT
 # leftovers of an earlier session (killed without this script's cleanup)
 stop_clients
+# WebKit's HTTP cache, which outlives the session in /tmp/run: uhttpd sends no
+# Cache-Control, so WebKit would keep an updated page's old index.html and
+# app.js on its own heuristic, until the next boot
+rm -rf "$HOME/.cache/wpe/WebKitCache"
 
 # -d: no client-side decorations.  cog: the page, black behind it, the page's
 # console into the log (logread -e e5-infoscreen), a new web process if one dies
