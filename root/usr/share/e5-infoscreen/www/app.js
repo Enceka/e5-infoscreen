@@ -5,6 +5,8 @@
 // confirm, back, digits, power).  The backlight goes off after the configured
 // idle time; the first touch or key after that only wakes the screen.  A new
 // SMS (e5-sms-notify's unread list) lights the screen and opens the message.
+// Power, then * within 2 s, locks the keys: the screen stays dark until the
+// same again (keyLock).
 
 const I18N = {
 	zh: {
@@ -13,7 +15,7 @@ const I18N = {
 		no_sms: '没有短信', unknown_sender: '未知号码', new_sms: '新短信',
 		advanced: '高级', adv_info: '高级信息', model: '型号',
 		traffic: '流量', today: '今日', this_month: '本月', last_days: '最近 7 天', counting_since: '开始统计于',
-		settings: '高级', apps: '应用', no_apps: '没有安装应用', press_again: '再按一次确认',
+		settings: '高级', apps: '应用', no_apps: '没有安装应用', press_again: '再按一次确认', unlocked: '已解锁',
 		apply: '应用', clear: '全部取消', save: '保存', saved: '已保存', failed: '失败',
 		online: '在线', offline: '离线', blocked: '已禁止上网', block: '禁止上网', unblock: '允许上网',
 		kick: '踢下 Wi-Fi', kicked: '已踢下线', mac: 'MAC', via: '连接', no_devices: '没有设备',
@@ -46,7 +48,7 @@ const I18N = {
 		no_sms: 'No messages', unknown_sender: 'Unknown', new_sms: 'New message',
 		advanced: 'Advanced', adv_info: 'Details', model: 'Model',
 		traffic: 'Traffic', today: 'Today', this_month: 'This month', last_days: 'Last 7 days', counting_since: 'Counting since',
-		settings: 'Settings', apps: 'Apps', no_apps: 'No apps installed', press_again: 'Press again',
+		settings: 'Settings', apps: 'Apps', no_apps: 'No apps installed', press_again: 'Press again', unlocked: 'Unlocked',
 		apply: 'Apply', clear: 'Clear all', save: 'Save', saved: 'Saved', failed: 'Failed',
 		online: 'Online', offline: 'Offline', blocked: 'Blocked', block: 'Block internet', unblock: 'Allow internet',
 		kick: 'Kick off Wi-Fi', kicked: 'Kicked', mac: 'MAC', via: 'Via', no_devices: 'No devices',
@@ -83,6 +85,7 @@ let lang = 'zh';
 let page = 0;
 let last = null;           // the last /api/status
 let blank = false;
+let locked = false;                 // the key lock (keyLock)
 let idleTimer = null;
 let pollTimer = null;
 let keyLogged = 0;
@@ -426,6 +429,7 @@ function toast(msg) {
 
 function setBlank(on) {
 	if (on == blank) return;
+	if (!on && locked) return;          // locked: nothing lights the screen
 	blank = on;
 	document.body.classList.toggle('blank', on);
 	post('backlight', { level: on ? 0 : brightness });
@@ -441,6 +445,41 @@ function resetIdle() {
 	const idle = last?.screen?.idle ?? 60;
 	if (!blank && idle > 0 && !(appOpen && appKeepAwake))
 		idleTimer = setTimeout(() => setBlank(true), idle * 1000);
+}
+
+/* ---------- key lock ---------- */
+
+// power (the screen goes dark), then * within 2 s: the keys are locked -- no
+// key, touch or new message lights the screen until power, then * again, which
+// unlocks and lights it.  The volume keys work on, dark, as always.  The
+// motor says "locked", since the screen cannot.
+const LOCK_WINDOW = 2000;
+let lastPower = -Infinity;
+
+function setLocked(on) {
+	locked = on;
+	if (on) {
+		setBlank(true);
+		post('vibrate', { ms: 80 });
+	} else {
+		setBlank(false);
+		toast(t('unlocked'));
+	}
+	applyTouch();
+	toApp({ e5: 'blank', on: blank });
+}
+
+// a key, as far as the lock is concerned: true when it is the lock's (the *
+// that completes power-then-*, or any key while locked)
+function keyLock(power, star) {
+	const now = performance.now();
+	if (star && now - lastPower < LOCK_WINDOW) {
+		lastPower = -Infinity;
+		setLocked(!locked);
+		return true;
+	}
+	if (power) lastPower = now;
+	return locked;
 }
 
 /* ---------- navigation ---------- */
@@ -540,6 +579,7 @@ document.addEventListener('keydown', (e) => {
 		volumeKey(kind == 'volup' ? 1 : -1);
 		return;
 	}
+	if (keyLock(kind == 'power' && !e.repeat, e.key == '*')) return;
 	if (blank) {
 		setBlank(false);
 		return;
@@ -576,12 +616,12 @@ document.addEventListener('keydown', (e) => {
 	}
 }, true);
 
-// touch off: every touch, tap and swipe is dropped here, before anything
-// else sees it, and it does not wake the screen either.  WebKit follows a
+// touch off, or the keys locked: every touch, tap and swipe is dropped here,
+// before anything else sees it, and it does not wake the screen either.  WebKit follows a
 // tap with a click it synthesises itself -- isTrusted false -- and its touch
 // hit-testing ignores pointer-events: so every click is dropped, except the
 // ones the keypad's confirm key makes (keyClick).
-function touchOff() { return last?.screen?.touch === false; }
+function touchOff() { return locked || last?.screen?.touch === false; }
 let keyClick = false;
 for (const ev of ['touchstart', 'touchmove', 'touchend', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click'])
 	window.addEventListener(ev, (e) => {
@@ -718,7 +758,7 @@ async function smsCheck(st) {
 		if (page == P.sms && !blank && smsOpen == null && now.length != before.length) loadSms();
 		return;
 	}
-	if (!st.sms.screen) return;
+	if (!st.sms.screen || locked) return;
 	if (blank) setBlank(false);
 	toast(t('new_sms'));
 	if (page != P.sms) showPage(P.sms);
@@ -1033,6 +1073,7 @@ async function stPost(v, body) {
 		const i = v.items.findIndex((x) => x.id == r.item.id);
 		if (i >= 0) v.items[i] = r.item;
 	}
+	if (r?.ok && r.item?.reload) stLoadCat(v);
 	if (r?.ok && v.cat.id == 'screen') stScreenApplied(body.id, r.item?.value ?? body.value);
 	if (r?.ok && v.cat.id == 'system' && body.id == 'clock_seconds' && last) {
 		last.screen.clock_seconds = !!body.value;
@@ -1351,6 +1392,7 @@ window.addEventListener('message', (e) => {
 			volumeKey(m.key == 'AudioVolumeUp' || m.keyCode == 175 ? 1 : -1);
 			return;
 		}
+		if (keyLock(m.kind == 'power' && !m.repeat, m.key == '*')) return;
 		if (blank) { setBlank(false); toApp({ e5: 'blank', on: false }); return; }
 		resetIdle();
 		if (m.kind == 'power' && !m.repeat) { setBlank(true); toApp({ e5: 'blank', on: true }); }

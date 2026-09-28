@@ -13,6 +13,7 @@
 //        info     value is text, read-only
 //   confirm      the change asks for a second press (it can cut the connection)
 //   note         a line under the item (why, or what it does)
+//   reload       after a change the page reads the category again (it shows in other items)
 // label and note are { zh, en }.  A change is POST /api/settings/<category>
 // { id, value } or { id } for an action; the reply is the item again, read back.
 
@@ -444,6 +445,16 @@ function next_boot() {
 	return null;
 }
 
+// the default e5-next-boot keeps (/etc/e5linux/default-boot: linux re-arms slot b
+// on every boot that comes up).  A trial image (e5.openwrt= on the command line,
+// the mainline kernel's) is never the default: boot/init writes android there
+function default_boot() {
+	return ctx.read_trim('/etc/e5linux/default-boot') == 'linux' ? 'linux' : 'android';
+}
+function trial_image() {
+	return match(ctx.read_trim('/proc/cmdline') ?? '', /(^| )e5\.openwrt=/) != null;
+}
+
 const system_cat = {
 	id: 'system', label: L('系统', 'System'),
 	items: function() {
@@ -462,6 +473,14 @@ const system_cat = {
 			  note: L('今日、本月和每日的统计都从零开始', 'Today, this month and the days start from zero') },
 			{ id: 'next_boot', type: 'info', label: L('下次重启进入', 'Next reboot boots'),
 			  value: next ? next.label : '--' },
+			trial_image()
+			? { id: 'default_boot', type: 'info', label: L('默认启动', 'Default boot'), value: L('Android', 'Android'),
+			    note: L('试用镜像不能设为默认启动', 'A trial image is never the default boot') }
+			: { id: 'default_boot', type: 'choice', label: L('默认启动', 'Default boot'), value: default_boot(),
+			    options: [ { value: 'linux', label: L('Linux', 'Linux') }, { value: 'android', label: L('Android', 'Android') } ],
+			    confirm: true, reload: true,
+			    note: L('Linux：每次开机后都回到 Linux；Android：下次重启起进入 Android',
+			            'Linux: every reboot comes back to Linux; Android: reboots go to Android') },
 			{ id: 'reboot', type: 'action', label: L('重启', 'Reboot'), confirm: true,
 			  note: next ? L(`重启后进入 ${next.label.zh}`, `Boots ${next.label.en}`) : null },
 			{ id: 'poweroff', type: 'action', label: L('关机', 'Power off'), confirm: true,
@@ -495,6 +514,11 @@ const system_cat = {
 			// a new, empty database: vnstat adds the configured interfaces again
 			ctx.run('/etc/init.d/vnstat stop >/dev/null 2>&1; rm -f /etc/vnstat/vnstat.db; /etc/init.d/vnstat start >/dev/null 2>&1');
 			return null;
+		}
+		if (id == 'default_boot') {
+			if (value != 'linux' && value != 'android') return 'linux or android';
+			if (trial_image()) return 'a trial image is never the default boot';
+			return ctx.run(`e5-next-boot ${value} >/dev/null 2>&1`) == 0 ? null : 'e5-next-boot failed';
 		}
 		if (id == 'reboot') { ctx.run('(sleep 2; reboot) >/dev/null 2>&1 &'); return null; }
 		if (id == 'poweroff') { ctx.run('(sleep 2; poweroff) >/dev/null 2>&1 &'); return null; }

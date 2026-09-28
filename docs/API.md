@@ -46,6 +46,7 @@ for version 1 of all three.
 | `POST /wifi` | `{ on: true\|false }` -- hotspot on/off |
 | `POST /backlight` | `{ level: 0-255, save: bool }` -- `save` makes it the level the screen comes back to |
 | `POST /wan-reconnect` | restarts the mobile connection |
+| `POST /vibrate` | `{ ms }`: one pulse of the motor, 20-1000 ms (e5-linux's `e5-vibrate`) |
 | `GET /advanced` | device, baseband, locks, SIM details (the 高级信息 page) |
 | `GET /bluetooth` | `{ available, adapter, powered, discovering, name, devices: [ { mac, name, paired, connected, state, icon } ] }`: bluetoothd's view; unnamed devices (BLE beacons) left out; `state` is e5-linux's `e5-bt-connect` progress: `pairing`, `connecting`, `failed: <reason>` (`notfound`, `forgot`, `noanswer`, or bluetoothd's) |
 | `POST /bluetooth` | `{ action: "power", on }`, `{ action: "scan" }` (20 s), `{ action: "connect"\|"disconnect"\|"remove", mac }` -> `{ ok, error }` + the same as `GET`; `connect` runs in the background (poll `GET`) |
@@ -111,6 +112,7 @@ A category's `items` are drawn by type; a plugin's settings use the same shape.
 | `options` | `[ { value, label } ]` |
 | `confirm` | `true`: the change needs a second press within 3 s (used for what can cut the connection) |
 | `value` | the current value, read back after a change |
+| `reload` | `true`: after a change the page reads the whole category again (the change shows in other items too) |
 
 ## 4. Keys
 
@@ -122,7 +124,7 @@ The page and the SDK report keys as kinds, measured on the E5's keypad:
 | `ok` | confirm (`KEY_SELECT`, reported by WebKit as "Unidentified"/0) | |
 | `back` | back (`KEY_BACK` + BackSpace, one press) | the SDK folds the pair into one |
 | `digit` | `0`-`9`, `*` | `key` has the character |
-| `power` | power (`PowerOff`) | always the host's: screen off |
+| `power` | power (`PowerOff`) | always the host's: screen off; power then `*` within 2 s is the key lock |
 | `other` | side key (`F1`), volume, ... | volume up/down (`AudioVolumeUp`/`AudioVolumeDown`) are always the host's: the speaker volume |
 
 ## 5. Plugins

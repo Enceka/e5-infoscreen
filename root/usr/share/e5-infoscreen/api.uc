@@ -1292,6 +1292,13 @@ global.handle_request = function(env) {
 			let b = read_body(env);
 			return reply_json(200, { ok: set_backlight(b.level ?? 0, !!b.save) });
 		}
+		if (post && path == '/vibrate') {
+			// e5-linux's e5-vibrate: one pulse, 20-1000 ms (the key lock's "locked")
+			let ms = int(read_body(env).ms ?? 100);
+			ms = ms < 20 ? 20 : ms > 1000 ? 1000 : ms;
+			system(`(e5-vibrate ${ms}) >/dev/null 2>&1 &`);
+			return reply_json(200, { ok: true });
+		}
 		if (post && path == '/wan-reconnect') {
 			system(`rm -f ${RUN}/modem.json`);
 			system('(ifup wan) >/dev/null 2>&1 &');
