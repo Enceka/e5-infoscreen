@@ -1,0 +1,6 @@
+# This tree is copied onto the device exactly as it is (install.sh tars root/
+# and unpacks it at /), so every file that lands there must keep LF: a CRLF in
+# a script turns "#!/bin/sh /etc/rc.common" into ".../etc/rc.common\r" and the
+# device answers "can't open '/etc/rc.common'".  Git on Windows defaults to
+# core.autocrlf=true and would hand out CRLF otherwise.
+* text=auto eol=lf
