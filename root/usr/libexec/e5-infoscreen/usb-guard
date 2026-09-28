@@ -1,0 +1,130 @@
+#!/bin/sh
+# Keep the USB gadget enumerated, and its netdev a port of br-lan -- run by
+# /etc/init.d/e5-infoscreen (instance "usbguard").
+#
+# The gadget is the board's lifeline: the network and the serial console at
+# once.  This kernel loses it on a replug -- musb-sprd restarts the gadget with
+# softconnect=0, so the host enumerates nothing and usb0 leaves br-lan with it
+# (docs/USB-SHARE.md 2: the bind-to-enable path is a known open issue of the
+# kernel port).  Nothing short of an unbind/bind brings the host back; nothing
+# else on the board does that after boot.
+#
+# What it does, and only when something is wrong (logread -e e5-usb-guard):
+#
+#   * UDC empty                        -> rebind (gadget-guard.sh's rule);
+#   * a cable is in and the host has not
+#     enumerated within GRACE          -> rebind, at most once per RETRY;
+#   * usb0 is not a port of br-lan     -> enslave it, as 10-e5-usb0 does (that
+#     hotplug has no carrier condition either: the port goes in whether or not
+#     a host is on the other end, and comes up when one appears).
+#
+# The USB uplink app (plugins/usbshare) is the window on to this and the manual way,
+# and its settings drive it: e5-plugin-usbshare.settings.guard turns it off,
+# .interval is the tick (both read every tick, so they take effect without a
+# restart).
+#
+# It never takes usb0 down: NCM loses its framing with the host when it goes
+# down, and this kernel's NCM function overwrites kernel memory with frames it
+# cannot parse (10-e5-usb0, 2026-09-27).  Enslaving it, and moving addresses on
+# and off it, are harmless.
+set -u
+
+G=/sys/kernel/config/usb_gadget/linux
+UDC=${E5_GADGET_UDC:-musb-hdrc.1.auto}
+STATE=/sys/class/udc/$UDC/state
+VBUS=/sys/class/power_supply/usb/online
+NETDEV=/sys/class/net/usb0
+BR=br-lan
+BRIF=/sys/class/net/$BR/brif/usb0
+INTERVAL=${E5_USB_GUARD_INTERVAL:-3}
+# A cable that has not enumerated after this long is the softconnect bug.
+GRACE=${E5_USB_GUARD_GRACE:-6}
+# ... and this is how long to wait before a second attempt, so a charger (where
+# the same state is normal) never turns into a loop.
+RETRY=${E5_USB_GUARD_RETRY:-60}
+# the app (plugins/usbshare) reads this: that the guard is running
+PIDFILE=/var/run/e5-usb-guard.pid
+echo $$ > "$PIDFILE"
+trap 'rm -f "$PIDFILE"' EXIT
+
+log() { logger -t e5-usb-guard "$*"; }
+state() { cat "$STATE" 2>/dev/null; }
+carrier() { cat "$NETDEV/carrier" 2>/dev/null; }
+option() { uci -q get "e5-plugin-usbshare.settings.$1" 2>/dev/null; }
+
+guard_on() {
+	case "$(option guard)" in
+	0 | off | false | no) return 1 ;;
+	esac
+	return 0
+}
+
+# unbind, pause, bind: the only way to re-enumerate once softconnect=0.  The
+# pause is what the host sees as the cable blinking -- 1 s costs it one ping.
+rebind() {
+	echo "" > "$G/UDC" 2>/dev/null
+	sleep 1
+	echo "$UDC" > "$G/UDC" 2>/dev/null
+}
+
+# 10-e5-usb0's three lines: the initramfs may have left 192.168.77.1 on usb0,
+# br-lan carries that address now
+enslave() {
+	ip -4 addr flush dev usb0 2>/dev/null
+	echo 1 > /proc/sys/net/ipv6/conf/usb0/disable_ipv6 2>/dev/null
+	ip link set usb0 master "$BR" 2>/dev/null
+	ip link set usb0 up 2>/dev/null
+	log "usb0 is a port of $BR again (state=$(state) carrier=$(carrier))"
+}
+
+bad=0   # seconds the gadget has been bound but not "configured"
+cool=999   # seconds since the last attempt, RETRY apart
+
+while :; do
+	# the pace is the app's setting, read every tick, so it changes without a
+	# restart of the guard
+	iv=$(option interval)
+	case "$iv" in '' | *[!0-9]*) iv=$INTERVAL ;; esac
+	if [ "$iv" -lt 1 ] || [ "$iv" -gt 60 ]; then iv=$INTERVAL; fi
+	sleep "$iv"
+
+	# the app's toggle: off means hands off (its own button still works)
+	guard_on || {
+		bad=0
+		cool=999
+		continue
+	}
+	[ -d "$G" ] || continue
+
+	if [ -z "$(cat "$G/UDC" 2>/dev/null)" ]; then
+		log "gadget unbound -- rebinding to $UDC"
+		rebind
+		log "UDC=$(cat "$G/UDC" 2>/dev/null) state=$(state)"
+		bad=0
+		cool=999
+	elif [ "$(state)" = configured ]; then
+		bad=0
+		cool=999
+	elif [ "$(cat "$VBUS" 2>/dev/null)" = 1 ]; then
+		# a cable is in, so a host is meant to be enumerating
+		bad=$((bad + iv))
+		cool=$((cool + iv))
+		if [ "$bad" -ge "$GRACE" ] && [ "$cool" -ge "$RETRY" ]; then
+			log "cable in, state=$(state) for ${bad}s -- rebinding"
+			rebind
+			log "state=$(state) UDC=$(cat "$G/UDC" 2>/dev/null)"
+			bad=0
+			cool=0
+		fi
+	else
+		# no cable: "not attached" is the truth, not a fault
+		bad=0
+		cool=999
+	fi
+
+	# usb0 leaving br-lan (netifd, or the rebind above) -- put it back as soon
+	# as it is not in br-lan, carrier or not -- 10-e5-usb0 does the same
+	if [ -e "$NETDEV" ] && [ ! -e "$BRIF" ] && [ -e "/sys/class/net/$BR" ]; then
+		enslave
+	fi
+done
