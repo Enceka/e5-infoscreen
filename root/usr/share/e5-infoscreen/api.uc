@@ -715,12 +715,19 @@ function read_kv(path) {
 	return r;
 }
 
+// the SoC's temperature (soc-thmzone: the hottest of its sensors, and the zone
+// with the critical trip); without it the hottest zone there is.  (Not the
+// hottest of all: the E5's chg-thmzone reads some 85 C at room temperature.)
 function thermal() {
 	let hot = null;
 	for (let z in glob('/sys/class/thermal/thermal_zone*')) {
-		let t = read_num(z + '/temp');
-		if (t != null && t > -40000 && t < 150000 && (hot == null || t > hot.temp))
-			hot = { temp: t / 1000, zone: read_trim(z + '/type') };
+		let t = read_num(z + '/temp'), type = read_trim(z + '/type');
+		if (t == null || t <= -40000 || t >= 150000)
+			continue;
+		if (type == 'soc-thmzone')
+			return { temp: t / 1000, zone: type };
+		if (hot == null || t > hot.temp * 1000)
+			hot = { temp: t / 1000, zone: type };
 	}
 	return hot;
 }
