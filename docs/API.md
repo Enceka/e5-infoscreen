@@ -46,6 +46,7 @@ for version 1 of all three.
 | `POST /wifi` | `{ on: true\|false }` -- hotspot on/off |
 | `POST /backlight` | `{ level: 0-255, save: bool }` -- `save` makes it the level the screen comes back to |
 | `POST /wan-reconnect` | restarts the mobile connection |
+| `POST /donate-seen` | the 赞赏码 was shown: `donate_seen` in `/etc/config/e5-infoscreen`, so it is not shown at start again |
 | `POST /vibrate` | `{ ms }`: one pulse of the motor, 20-1000 ms (e5-linux's `e5-vibrate`) |
 | `GET /advanced` | device, baseband, locks, SIM details (the 高级信息 page) |
 | `GET /bluetooth` | `{ available, adapter, powered, discovering, name, devices: [ { mac, name, paired, connected, state, icon } ] }`: bluetoothd's view; unnamed devices (BLE beacons) left out; `state` is e5-linux's `e5-bt-connect` progress: `pairing`, `connecting`, `failed: <reason>` (`notfound`, `forgot`, `noanswer`, or bluetoothd's) |
@@ -107,7 +108,7 @@ A category's `items` are drawn by type; a plugin's settings use the same shape.
 | Field | |
 |---|---|
 | `id` | unique in the category |
-| `type` | `toggle` (value `true`/`false`), `choice` (value + `options`), `number` (value + `min`, `max`, `step`, `unit`), `multi` (value = array of option values; none chosen means "no restriction"), `action` (no value; pressing it runs it), `info` (read-only text) |
+| `type` | `toggle` (value `true`/`false`), `choice` (value + `options`), `number` (value + `min`, `max`, `step`, `unit`), `multi` (value = array of option values; none chosen means "no restriction"), `action` (no value; pressing it runs it), `info` (read-only text), `image` (`src`, optional `caption`: pressing the row shows the picture full screen) |
 | `label`, `note` | `{ zh, en }`; `note` is shown under the item |
 | `options` | `[ { value, label } ]` |
 | `confirm` | `true`: the change needs a second press within 3 s (used for what can cut the connection) |

@@ -38,6 +38,7 @@
 | `POST /wifi` | `{ on: true\|false }`，开关热点 |
 | `POST /backlight` | `{ level: 0-255, save: bool }`；`save` 表示把它作为亮屏时恢复的亮度 |
 | `POST /wan-reconnect` | 重新建立移动网络连接 |
+| `POST /donate-seen` | 赞赏码已经显示过：写入 `/etc/config/e5-infoscreen` 的 `donate_seen`，以后开机不再弹出 |
 | `POST /vibrate` | `{ ms }`：马达振动一次，20-1000 毫秒（e5-linux 的 `e5-vibrate`） |
 | `GET /advanced` | 设备、基带、锁定、SIM 的详细信息（“高级信息”页） |
 | `GET /bluetooth` | `{ available, adapter, powered, discovering, name, devices: [ { mac, name, paired, connected, state, icon } ] }`：bluetoothd 的状态；没有名字的设备（BLE 信标）不列出；`state` 是 e5-linux 的 `e5-bt-connect` 进度：`pairing`、`connecting`、`failed: <原因>`（`notfound`、`forgot`、`noanswer` 或 bluetoothd 的错误） |
@@ -66,7 +67,7 @@
 | 字段 | 说明 |
 |---|---|
 | `id` | 在分类内唯一 |
-| `type` | `toggle`（值为 `true`/`false`）、`choice`（值 + `options`）、`number`（值 + `min`、`max`、`step`、`unit`）、`multi`（值为选项值的数组；一个都不选表示不限制）、`action`（无值，按下即执行）、`info`（只读文字） |
+| `type` | `toggle`（值为 `true`/`false`）、`choice`（值 + `options`）、`number`（值 + `min`、`max`、`step`、`unit`）、`multi`（值为选项值的数组；一个都不选表示不限制）、`action`（无值，按下即执行）、`info`（只读文字）、`image`（`src`，可带 `caption`：按下这一行全屏显示图片） |
 | `label`、`note` | `{ zh, en }`；`note` 显示在该项下面 |
 | `options` | `[ { value, label } ]` |
 | `confirm` | `true`：需要在 3 秒内再按一次才生效（用于可能断网的操作） |

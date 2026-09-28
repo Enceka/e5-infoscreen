@@ -6,7 +6,8 @@
 // idle time; the first touch or key after that only wakes the screen.  A new
 // SMS (e5-sms-notify's unread list) lights the screen and opens the message.
 // Power, then * within 2 s, locks the keys: the screen stays dark until the
-// same again (keyLock).
+// same again (keyLock).  The first start after an install shows the 赞赏码
+// once (picOpen); after that it is under 高级 -> 关于.
 
 const I18N = {
 	zh: {
@@ -15,7 +16,7 @@ const I18N = {
 		no_sms: '没有短信', unknown_sender: '未知号码', new_sms: '新短信',
 		advanced: '高级', adv_info: '高级信息', model: '型号',
 		traffic: '流量', today: '今日', this_month: '本月', last_days: '最近 7 天', counting_since: '开始统计于',
-		settings: '高级', apps: '应用', no_apps: '没有安装应用', press_again: '再按一次确认', unlocked: '已解锁',
+		settings: '高级', apps: '应用', no_apps: '没有安装应用', press_again: '再按一次确认', unlocked: '已解锁', pic_close: '按任意键或点一下关闭', donate_note: '关闭后不再弹出，以后如有意愿，可以在“高级 → 关于 → 赞赏”里赞赏',
 		apply: '应用', clear: '全部取消', save: '保存', saved: '已保存', failed: '失败',
 		online: '在线', offline: '离线', blocked: '已禁止上网', block: '禁止上网', unblock: '允许上网',
 		kick: '踢下 Wi-Fi', kicked: '已踢下线', mac: 'MAC', via: '连接', no_devices: '没有设备',
@@ -48,7 +49,7 @@ const I18N = {
 		no_sms: 'No messages', unknown_sender: 'Unknown', new_sms: 'New message',
 		advanced: 'Advanced', adv_info: 'Details', model: 'Model',
 		traffic: 'Traffic', today: 'Today', this_month: 'This month', last_days: 'Last 7 days', counting_since: 'Counting since',
-		settings: 'Settings', apps: 'Apps', no_apps: 'No apps installed', press_again: 'Press again', unlocked: 'Unlocked',
+		settings: 'Settings', apps: 'Apps', no_apps: 'No apps installed', press_again: 'Press again', unlocked: 'Unlocked', pic_close: 'Any key or a tap closes this', donate_note: 'This is not shown again; it stays under Settings -> About -> Donate',
 		apply: 'Apply', clear: 'Clear all', save: 'Save', saved: 'Saved', failed: 'Failed',
 		online: 'Online', offline: 'Offline', blocked: 'Blocked', block: 'Block internet', unblock: 'Allow internet',
 		kick: 'Kick off Wi-Fi', kicked: 'Kicked', mac: 'MAC', via: 'Via', no_devices: 'No devices',
@@ -86,6 +87,7 @@ let page = 0;
 let last = null;           // the last /api/status
 let blank = false;
 let locked = false;                 // the key lock (keyLock)
+let picShown = false;               // a picture over everything (picOpen)
 let idleTimer = null;
 let pollTimer = null;
 let keyLogged = 0;
@@ -380,6 +382,7 @@ async function poll() {
 				brightness = st.screen.brightness || 120;
 				applyLang();
 				resetIdle();
+				if (!st.screen.donate_seen) donateOnce();
 			}
 			if (!blank) render(st);
 			smsCheck(st);
@@ -446,6 +449,39 @@ function resetIdle() {
 	if (!blank && idle > 0 && !(appOpen && appKeepAwake))
 		idleTimer = setTimeout(() => setBlank(true), idle * 1000);
 }
+
+/* ---------- a picture, full screen ---------- */
+
+// an image item (高级 -> 关于 -> 赞赏), or the 赞赏码 the first time: over the
+// pages until a key or a tap
+function picOpen(src, caption, onClose, note) {
+	$('pic-img').src = src;
+	setText('pic-caption', caption ?? '');
+	setText('pic-note', note ?? '');
+	$('pic-note').hidden = !note;
+	setText('pic-close', t('pic_close'));
+	$('pic').hidden = false;
+	picShown = true;
+	picOpen.onClose = onClose;
+}
+
+function picClose() {
+	$('pic').hidden = true;
+	picShown = false;
+	const f = picOpen.onClose;
+	picOpen.onClose = null;
+	if (f) f();
+}
+
+// the first start after an install (screen.donate_seen false): the About
+// item's picture, once; closing it records that (POST /donate-seen)
+async function donateOnce() {
+	const r = await fetch('/api/settings/about', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+	const it = r?.items?.find((x) => x.id == 'donate');
+	if (it) picOpen(it.src, lbl(it.caption), () => post('donate-seen'), t('donate_note'));
+}
+
+on('pic', 'click', () => picClose());
 
 /* ---------- key lock ---------- */
 
@@ -585,6 +621,10 @@ document.addEventListener('keydown', (e) => {
 		return;
 	}
 	resetIdle();
+	if (picShown) {
+		picClose();
+		return;
+	}
 	if (appOpen) {                       // (the plugin's frame lost the focus)
 		$('app-frame').focus();
 		return;
@@ -982,7 +1022,7 @@ function stRender() {
 		html = v.items == null ? `<div class="sub">${esc(t('loading'))}</div>` :
 			v.items.map((it) => stRow('item:' + it.id, lbl(it.label), stValue(it),
 				{ info: it.type == 'info', on: it.type == 'toggle' && it.value, note: lbl(it.note),
-				  chev: ['choice', 'number', 'multi'].includes(it.type) })).join('');
+				  chev: ['choice', 'number', 'multi', 'image'].includes(it.type) })).join('');
 	} else if (v.view == 'edit') {
 		const it = v.item;
 		if (it.type == 'choice') {
@@ -1173,6 +1213,8 @@ async function stClick(key, el) {
 			if (it.confirm && !stConfirm(key, el)) return;
 			await stPost(v, { id: it.id });
 			stLoadCat(v);
+		} else if (it.type == 'image') {
+			picOpen(it.src, lbl(it.caption), () => el?.focus());
 		} else if (it.type == 'choice' || it.type == 'number' || it.type == 'multi') {
 			st.push({ view: 'edit', cat: v.cat, item: it, parent: v,
 			          draft: it.type == 'multi' ? [...(it.value ?? [])] : it.value });
@@ -1450,7 +1492,7 @@ on('dv-reconnect', 'click', async () => {
 
 // the page and this script must be the same version: if an element the
 // script needs is missing, load the page once more past the cache
-if (!$('ad-showids') && !sessionStorage.getItem('e5-reloaded')) {
+if (!$('pic') && !sessionStorage.getItem('e5-reloaded')) {
 	sessionStorage.setItem('e5-reloaded', '1');
 	location.reload();
 } else {

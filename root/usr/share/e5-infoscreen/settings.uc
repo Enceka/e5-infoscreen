@@ -11,6 +11,7 @@
 //        multi    value: [ ... ], options: [ { value, label } ] (none chosen = no lock)
 //        action   no value; confirm: true -> the page asks for a second press
 //        info     value is text, read-only
+//        image    src: a picture the page shows full screen when the row is pressed
 //   confirm      the change asks for a second press (it can cut the connection)
 //   note         a line under the item (why, or what it does)
 //   reload       after a change the page reads the category again (it shows in other items)
@@ -538,6 +539,8 @@ const about = {
 			{ id: 'maintainer', type: 'info', label: L('维护者', 'Maintainer'), value: 'Enceka <enceka@yeah.net>' },
 			{ id: 'copyright', type: 'info', label: L('版权', 'Copyright'), value: '© 2026 Enceka' },
 			{ id: 'license', type: 'info', label: L('许可', 'License'), value: 'MIT' },
+			{ id: 'donate', type: 'image', label: L('赞赏', 'Donate'), src: '/donate.jpg',
+			  caption: L('觉得好用，可以微信扫码赞赏作者', 'If it is of use to you: the author\'s WeChat tip code') },
 			{ id: 'disclaimer', type: 'info', label: L('免责声明', 'Disclaimer'),
 			  value: L('按“原样”提供，不作任何担保', 'Provided "as is", without warranty'),
 			  note: L('非官方软件，与荣悦及设备、芯片厂商无关。修改网络模式、频段、AT 指令和充电设置可能导致断网、设备异常或失去保修，风险由使用者自行承担。',

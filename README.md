@@ -106,6 +106,7 @@ and enables and starts the service.  A reinstall keeps `/etc/config/e5-infoscree
 | `idle` | `60` | seconds before the backlight goes off, `0` never |
 | `brightness` | `120` | backlight level while on, 1-255 (the Device page changes and saves it) |
 | `lang` | `zh` | `zh` or `en` |
+| `donate_seen` | (unset) | `1` once the 赞赏码 has been shown at the first start after an install; after that it is under 高级 -> 关于 -> 赞赏 only |
 
 ## Debugging
 

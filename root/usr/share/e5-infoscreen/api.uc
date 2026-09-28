@@ -466,7 +466,10 @@ function screen_config() {
 		brightness: +(c.get('e5-infoscreen', 'main', 'brightness') ?? 120),
 		clock_seconds: c.get('e5-infoscreen', 'main', 'clock_seconds') == '1',
 		touch: c.get('e5-infoscreen', 'main', 'touch') != '0',
-		lang: c.get('e5-infoscreen', 'main', 'lang') ?? 'zh'
+		lang: c.get('e5-infoscreen', 'main', 'lang') ?? 'zh',
+		// the 赞赏码 was shown once (the first start after an install); after
+		// that it is under 高级 -> 关于 only
+		donate_seen: c.get('e5-infoscreen', 'main', 'donate_seen') == '1'
 	};
 }
 
@@ -1298,6 +1301,11 @@ global.handle_request = function(env) {
 			ms = ms < 20 ? 20 : ms > 1000 ? 1000 : ms;
 			system(`(e5-vibrate ${ms}) >/dev/null 2>&1 &`);
 			return reply_json(200, { ok: true });
+		}
+		if (post && path == '/donate-seen') {
+			let c = cursor();
+			c.set('e5-infoscreen', 'main', 'donate_seen', '1');
+			return reply_json(200, { ok: c.commit('e5-infoscreen') });
 		}
 		if (post && path == '/wan-reconnect') {
 			system(`rm -f ${RUN}/modem.json`);
