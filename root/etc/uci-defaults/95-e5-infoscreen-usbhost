@@ -1,0 +1,24 @@
+#!/bin/sh
+# The USB share has to actually share: e5-linux's 90-e5 gives the USB host a
+# reserved lease and *suppresses* DHCP option 3 (the router) for it -- "it has
+# its own uplink".  On Windows that leaves the cable with an address and no IPv4
+# gateway, so the adapter reads "no internet" while IPv6 keeps working (its
+# default route comes from odhcpd's RA, not from DHCPv4), and the app's own
+# status still says the link is fine.  Handing the router option back makes the
+# cable a real uplink.
+#
+# The cable is the *intended* uplink here, so the PC is told to prefer it
+# rather than fall back to it: Wi-Fi stays on automatic and only takes over
+# once the cable's routes are gone.
+#   netsh interface ipv4 set interface "以太网 3" metric=5        (admin)
+#   netsh interface ipv4 set interface "以太网 3" metric=automatic (undo)
+#
+# uci-defaults run in lexical order, so 95- lands after 90-e5 and wins.  The
+# same fix belongs in e5-linux's own tree; this copy is what the e5-infoscreen
+# image carries.
+if uci -q get dhcp.usbhost >/dev/null; then
+	uci -q delete dhcp.usbhost.dhcp_option
+	uci -q add_list dhcp.usbhost.dhcp_option='3,192.168.9.1'
+	uci -q commit dhcp
+fi
+exit 0

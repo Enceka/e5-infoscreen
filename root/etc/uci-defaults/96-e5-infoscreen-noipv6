@@ -1,0 +1,25 @@
+#!/bin/sh
+# This box is used over IPv4 only -- the USB cable is the uplink -- but
+# e5-linux's 90-e5 leaves the LAN handing out IPv6: `ra server` plus stateful
+# DHCPv6.  The PC therefore keeps a SLAAC address and a default route built
+# from /64s that netifd copies onto br-lan straight off the cellular bearer
+# (lan.ip6assign=64), and it carries two more delegated prefixes from earlier
+# PD leases that are still counting down.  Those prefixes change whenever the
+# bearer reconnects and expire on their own, so the PC renumbers, and a
+# dual-stack client stalls on the AAAA path for a few seconds each time.
+#
+# Turning the LAN side off is enough and is all this does: no RA, no DHCPv6,
+# so the PC's addresses age out and none are replaced.  The bearer is left
+# alone -- wan.iptype stays ipv4v6, nothing on the modem side is touched.
+# Undo, if IPv6 on the LAN is ever wanted back:
+#   uci set dhcp.lan.dhcpv6=server; uci set dhcp.lan.ra=server
+#   uci set dhcp.lan.ra_slaac=1; uci add_list dhcp.lan.ra_flags=other-config
+#   uci commit dhcp; /etc/init.d/odhcpd restart
+#
+# uci-defaults run in lexical order, so 96- lands after 90-e5 and wins.
+uci -q set dhcp.lan.dhcpv6='disabled'
+uci -q set dhcp.lan.ra='disabled'
+uci -q delete dhcp.lan.ra_slaac
+uci -q delete dhcp.lan.ra_flags
+uci -q commit dhcp
+exit 0

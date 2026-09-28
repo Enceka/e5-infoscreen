@@ -17,7 +17,7 @@ device at a glance, and is driven by touch and by the keypad.
 | Device | battery, uptime, time online, load, memory, LAN/IPv4/IPv6 addresses, brightness, reconnect |
 | Details (高级信息) | device (system, image, kernel, storage, temperature, battery voltage); baseband (model, firmware, 5G SA, modes); band locks (LTE, NR) and cell locks, decoded from `AT+SPLBAND` / `AT+SPFORCEFRQ`; SIM (active slot, operator, registration); the identifiers on request |
 | Settings (高级) | by function: **network** (network mode 5G/4G/3G, 5G/4G, 5G only (SA), 4G only; 5G access SA + NSA or NSA only; APN switch, automatic from the SIM by default; LTE/NR band lock, default bands, cell lock; reconnect), **AT commands** (a list of reads, run and shown; any command through `/api/at`), **devices** (block internet, kick off Wi-Fi), **Bluetooth** (on/off, search, pair and connect headphones or speakers -- the sound then plays there -- disconnect, forget), **charging** (limit, resume level, charge to full once -- e5-linux's `e5-charge`), **notifications** (SMS vibration, light up, SMS sound), **sound** (volume, a test sound -- when e5-linux's `e5-volume` is there), **screen** (brightness, screen-off time, touch on/off, language), **system** (time zone, clock with seconds, clear traffic records, what the next reboot boots, the default boot (Linux or Android), reboot, power off, boot Android once; Debian once is `e5-os debian --once` on the command line), and each plugin's settings |
-| Apps | the installed plugins; two come with it, a calculator and a network test |
+| Apps | the installed plugins; three come with it -- a calculator, a network test and the USB share |
 
 The status bar carries the operator, the technology, signal bars, the battery
 and the time, and ✉ with the number of unread messages.  A new message lights
@@ -50,8 +50,63 @@ Everything is an OpenWrt package except the files in `root/`:
   default) or on the power key; the first touch or key after that only wakes
   the screen -- unless the keys are locked (power, then `*`: see Keys).
 
-`/etc/init.d/e5-infoscreen` runs the three parts (`seatd`, `api`, `ui`) as procd
-instances.
+`/etc/init.d/e5-infoscreen` runs the four parts (`seatd`, `api`, `ui`,
+`usbguard`) as procd instances.  `usbguard` is `usr/libexec/e5-infoscreen/usb-guard`:
+this kernel loses the USB gadget on a replug (it comes back with
+`softconnect=0`, so the host enumerates nothing -- docs/USB-SHARE.md 2), and the
+port leaves `br-lan` with it.  Nothing re-binds it after boot, so the guard does
+two things, and only when something is wrong: an empty UDC is rebound, and a
+cable that has not enumerated after GRACE seconds is rebound too (once per RETRY,
+so a charger cannot turn it into a loop); `usb0` outside `br-lan` goes back in.
+The rebind is unbind, pause 1 s, bind -- it costs the host one ping.  It logs
+what it did (`logread -e e5-usb-guard`) and never takes `usb0` down.
+
+Its window and manual way in is the app `usbshare` (USB 供网 in the apps list),
+one of the three the image ships: one line for the three parts of the path
+(link, uplink, gateway), one switch for auto-repair (with whether the guard is
+running and how often it looks), and one Repair now button that re-enumerates,
+puts `usb0` back into `br-lan` and gives the gateway back if it is missing.  It
+lives in `root/usr/share/e5-infoscreen/www/plugins/usbshare` like the other two;
+to install it on its own, `tar -czf usbshare-1.5.tar.gz -C
+root/usr/share/e5-infoscreen/www/plugins usbshare`, then upload it in LuCI
+(服务 → 信息屏应用) or run `/usr/libexec/e5-infoscreen/plugin install <file>` on
+the device.  Its two settings (auto-repair, the check interval) also appear under
+高级, and the guard reads them on every tick, so they take effect without a
+restart.
+
+## How the cable carries the internet
+
+**The cable is the main path; Wi-Fi is only the emergency one.**  Three things have to hold, and
+the app's status line reports them separately (`线通 · 上行通 · 已下发网关`):
+
+| part | what is checked | when it is down |
+|---|---|---|
+| link | the gadget is bound and `configured`, `usb0` has carrier and is in `br-lan` | unbound / not enumerating / no host / not in br-lan |
+| uplink | the device has an exit (netifd's `wan` is up; falls back to the default route) | `uplink down` -- the mobile side, which the app **never touches** (a reconnect storm got the SIM barred, e5-linux §28) |
+| gateway | `dhcp.usbhost.dhcp_option` holds `3,192.168.9.1` | `no gateway` -- e5-linux's `90-e5` hands out the reserved lease and *deliberately* withholds the router option ("it has its own uplink"), leaving the PC with an address, DNS and IPv6 but **no IPv4 default route** |
+
+`root/etc/uci-defaults/95-e5-infoscreen-usbhost` gives the gateway back: uci-defaults run in
+lexical order, so `95-` lands after `90-e5` and wins.  The app's Repair now button also restores
+the option (and restarts dnsmasq) when it is missing, on top of rebinding the gadget and putting
+`usb0` back into `br-lan` -- you never have to work out which part broke.
+
+On the PC side, pin the cable **below** Wi-Fi so it wins consistently (Windows otherwise picks by
+link speed and the choice drifts).  Admin; undo with `metric=automatic`:
+
+```bat
+netsh interface ipv4 set interface "以太网 3" metric=5
+netsh interface ipv6 set interface "以太网 3" metric=5
+```
+
+Leave Wi-Fi on automatic: the cable wins whenever it is up (5 < 35), and when it is unplugged its
+routes disappear and Wi-Fi takes over -- which is the emergency case.
+
+The LAN used to hand out IPv6 as well, and `lan.ip6assign '64'` put a /64 taken straight off the
+cellular bearer on `br-lan` -- so a bearer reconnect renumbered the PC and stalled dual-stack
+clients on the AAAA path for a few seconds.  On a cable-first device that is noise:
+`root/etc/uci-defaults/96-e5-infoscreen-noipv6` stops the LAN advertising it (`dhcpv6` and `ra`
+off) and leaves the bearer alone -- `wan.iptype` stays `ipv4v6`, because restarting the data unit
+is what got the SIM barred.  Details and how to prove the RA stopped: `docs/USB-SHARE.md` §4.
 
 ## Keys
 
@@ -78,7 +133,7 @@ the core API, the settings items, the SDK and the backend context.
 
 ## Apps
 
-The Apps page shows the plugins; two come with the screen.  Install more in
+The Apps page shows the plugins; three come with the screen.  Install more in
 LuCI (服务 -> 信息屏应用: upload a `.tar.gz` or `.zip`), uninstall there or
 on the screen (高级 -> 应用管理).  The package format: [`docs/API.md`](docs/API.md) 5.5.
 
@@ -93,7 +148,8 @@ OpenWrt's repositories):
 ```
 
 It installs `packages.txt` (about 200 MB with WebKit and Mesa), copies `root/`,
-and enables and starts the service.  A reinstall keeps `/etc/config/e5-infoscreen`.
+runs the image's `uci-defaults` (`??-e5-infoscreen*`, in order), and enables and
+starts the service.  A reinstall keeps `/etc/config/e5-infoscreen`.
 
 ## Settings
 

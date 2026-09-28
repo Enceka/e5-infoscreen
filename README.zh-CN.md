@@ -16,7 +16,7 @@
 | 设备 | 电池、开机时长、联网时长、负载、内存、LAN/IPv4/IPv6 地址、亮度、重新连接网络 |
 | 高级信息 | 设备（系统、镜像、内核、存储、温度、电池电压）；基带（型号、固件、5G SA、网络模式）；频段锁（LTE、NR）和小区锁，由 `AT+SPLBAND` / `AT+SPFORCEFRQ` 解码；SIM（当前卡槽、运营商、注册状态）；按需显示识别码 |
 | 高级 | 按功能分类的设置：**网络**（网络模式 5G/4G/3G、5G/4G、仅 5G (SA)、仅 4G；5G 组网 SA + NSA 或仅 NSA；切换 APN（默认按 SIM 卡自动选择）；LTE/NR 频段锁定、恢复默认频段、锁小区；重新连接）、**AT 指令**（常用查询，点选执行并显示回复；任意指令通过 `/api/at`）、**设备管理**（禁止上网、踢下 Wi-Fi）、**蓝牙**（开关、搜索、配对并连接耳机或音箱——连上后声音从蓝牙播放——断开、忘记设备）、**充电**（充电上限、恢复充电的电量、临时充满一次，由 e5-linux 的 `e5-charge` 执行）、**通知**（短信震动、亮屏、短信提示音）、**声音**（音量、测试音，需要 e5-linux 的 `e5-volume`）、**屏幕**（亮度、自动息屏、触摸开关、语言）、**系统**（时区、时间显示秒、清空流量记录、下次重启进入的系统、默认启动（Linux 或 Android）、重启、关机、下次启动 Android；下次启动 Debian 用命令行的 `e5-os debian --once`），以及各插件的设置 |
-| 应用 | 已安装的插件；自带计算器和网络测试两个 |
+| 应用 | 已安装的插件；自带计算器、网络测试、USB 供网三个 |
 
 顶部状态栏显示运营商、制式、信号格、电量和时间，有未读短信时显示 ✉ 和条数。新短信到达
 时屏幕会亮起并直接打开该短信（震动和未读列表由 e5-linux 的 `e5-sms-notify` 负责，
@@ -43,7 +43,54 @@
 * **屏幕电源**：空闲超时后（默认 60 秒）或按电源键时关背光；之后的第一次触摸或按键
   只负责点亮屏幕——按键锁（电源键再按 `*`，见“按键”）打开时除外。
 
-`/etc/init.d/e5-infoscreen` 以 procd 实例运行这三部分（`seatd`、`api`、`ui`）。
+`/etc/init.d/e5-infoscreen` 以 procd 实例运行这四个部分（`seatd`、`api`、`ui`、`usbguard`）。
+`usbguard` 是 `usr/libexec/e5-infoscreen/usb-guard`：这个内核在**重新插拔 USB 后会丢掉
+gadget**（回来时带着 `softconnect=0`，主机什么都枚举不到——docs/USB-SHARE.md 2），`usb0`
+也会跟着掉出 `br-lan`。开机之后没有任何东西会重新绑定它，所以这个守护只做两件事，
+而且只在出问题时动手：UDC 为空就重新绑定；线插着而过了 GRACE 秒主机还没枚举出来也重新
+绑定（同一个插拔里每 RETRY 秒最多一次，免得对着充电器空转）；`usb0` 不在 `br-lan` 里就
+放回去。重绑是“解绑、停 1 秒、再绑定”，主机那边只丢一个 ping。它只在自己动手时写日志
+（`logread -e e5-usb-guard`），并且**从不把 usb0 down 掉**。
+
+它的窗口和手动入口是应用 `usbshare`（应用列表里的“USB 供网”，自带三个之一）：一行状态把
+这条路分三段报出来（链路 / 上行 / 网关），一行开关说断线自动修复在不在（同时显示守护在不在
+跑、多久查一次），一个“立即修复”按钮——按一下重新枚举、把 `usb0` 放回 `br-lan`，网关缺了
+就补回来。它和另外两个一样住在 `root/usr/share/e5-infoscreen/www/plugins/usbshare`；想单独装，
+`tar -czf usbshare-1.5.tar.gz -C root/usr/share/e5-infoscreen/www/plugins usbshare`，
+然后在 LuCI（服务 → 信息屏应用）里上传安装，或在设备上运行
+`/usr/libexec/e5-infoscreen/plugin install 文件`。它的两个设置（自动修复、检查间隔）同时
+出现在“高级”里，守护每拍都重新读一次，所以改完不需要重启。
+
+## 这条链路怎么给 PC 供网
+
+**网线是主路，Wi-Fi 只作应急。** 这条路要通，三段都得成立，应用的状态行就把三段分开报
+（例如 `线通 · 上行通 · 已下发网关`）：
+
+| 段 | 判据 | 断了的时候 |
+|---|---|---|
+| 链路 | gadget 绑定且 `configured`、`usb0` 有载波、在 `br-lan` 里 | 未绑定 / 主机未枚举 / 未接入主机 / 不在 br-lan |
+| 上行 | 设备自己有出口（netifd 的 `wan` 是 up；取不到时退回看默认路由） | `上行断`——移动数据的事，应用**不碰**（重连风暴会把 SIM 拉黑，见 e5-linux §28） |
+| 网关 | `dhcp.usbhost.dhcp_option` 里有 `3,192.168.9.1` | `未给网关`——e5-linux 的 `90-e5` 只给静态租约、故意不给网关（"it has its own uplink"），PC 于是有地址、有 DNS、有 IPv6，却**没有 IPv4 默认路由** |
+
+`root/etc/uci-defaults/95-e5-infoscreen-usbhost` 把网关补回来：uci-defaults 按文件名字典序执行，
+`95-` 排在 `90-e5` 之后，所以它说了算。应用里的「立即修复」也会在网关缺失时补回它并重启
+dnsmasq，同时重绑 gadget、把 `usb0` 放回 `br-lan`——哪一段断的不用你判断。
+
+PC 侧要让网线**稳定压过 Wi-Fi**（Windows 默认按链路速度自动挑度量，会飘），把那张网卡设成
+固定度量（管理员；撤销用 `metric=automatic`）：
+
+```bat
+netsh interface ipv4 set interface "以太网 3" metric=5
+netsh interface ipv6 set interface "以太网 3" metric=5
+```
+
+Wi-Fi 保持“自动”就行：网线一接上就赢（5 < 35），拔掉后它的路由消失，Wi-Fi 自动接管——应急。
+
+局域网原来也发 IPv6，而 `lan.ip6assign '64'` 会把蜂窝上行自己的 /64 直接铺到 `br-lan` 上
+——上行每重连一次 PC 就要重编一次地址，双栈客户端在 AAAA 那条路上白卡几秒。对一个以网线
+为主的设备来说这是纯噪声：`root/etc/uci-defaults/96-e5-infoscreen-noipv6` 只关掉局域网这一
+侧的广告（`dhcpv6` 与 `ra` 关闭），**不动蜂窝承载**——`wan.iptype` 保持 `ipv4v6`，因为重启
+数据单元正是把 SIM 弄黑的那件事。细节与“怎么证明 RA 真的停了”见 `docs/USB-SHARE.md` §4。
 
 ## 按键
 
@@ -69,7 +116,7 @@ SDK 和后端上下文的说明见 [`docs/API.zh-CN.md`](docs/API.zh-CN.md)。
 
 ## 应用
 
-“应用”页显示已安装的插件，自带两个。更多应用在 LuCI 里安装（服务 → 信息屏应用：上传 `.tar.gz` 或 `.zip`），
+“应用”页显示已安装的插件，自带三个。更多应用在 LuCI 里安装（服务 → 信息屏应用：上传 `.tar.gz` 或 `.zip`），
 可以在那里或屏幕上（高级 → 应用管理）卸载。应用包格式见 [`docs/API.zh-CN.md`](docs/API.zh-CN.md) 5.5 节。
 
 ## 安装
@@ -83,7 +130,8 @@ SDK 和后端上下文的说明见 [`docs/API.zh-CN.md`](docs/API.zh-CN.md)。
 ```
 
 脚本会安装 `packages.txt` 里的包（含 WebKit 和 Mesa 约 200 MB），复制 `root/`，
-然后启用并启动服务。重装会保留 `/etc/config/e5-infoscreen`。
+按顺序运行镜像带的 `uci-defaults`（`??-e5-infoscreen*`），然后启用并启动服务。重装会
+保留 `/etc/config/e5-infoscreen`。
 
 ## 设置
 
