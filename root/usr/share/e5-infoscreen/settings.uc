@@ -435,11 +435,21 @@ function build_time() {
 	return sprintf('%04d-%02d-%02d %02d:%02d', lt.year, lt.mon, lt.mday, lt.hour, lt.min);
 }
 
+// what the next reboot boots (e5-linux's e5-next-boot: the slots in misc as they
+// stand -- a trial boot of Linux goes back to Android unless Linux is the default)
+function next_boot() {
+	let t = trim(ctx.sh('e5-next-boot next 2>/dev/null') ?? '');
+	if (t == 'linux') return { value: t, label: L('Linux', 'Linux') };
+	if (t == 'android') return { value: t, label: L('Android', 'Android') };
+	return null;
+}
+
 const system_cat = {
 	id: 'system', label: L('系统', 'System'),
 	items: function() {
 		let sec = system_section();
 		let zone = sec ? ctx.uci().get('system', sec, 'zonename') : null;
+		let next = next_boot();
 		return [
 			{ id: 'timezone', type: 'choice', label: L('时区', 'Time zone'), value: zone ?? 'UTC',
 			  options: map(ZONES, (z) => ({ value: z[0], label: z[2] })),
@@ -450,7 +460,10 @@ const system_cat = {
 			{ id: 'built', type: 'info', label: L('构建时间', 'Built'), value: build_time() ?? '--' },
 			{ id: 'traffic_clear', type: 'action', label: L('清空流量记录', 'Clear traffic records'), confirm: true,
 			  note: L('今日、本月和每日的统计都从零开始', 'Today, this month and the days start from zero') },
-			{ id: 'reboot', type: 'action', label: L('重启', 'Reboot'), confirm: true },
+			{ id: 'next_boot', type: 'info', label: L('下次重启进入', 'Next reboot boots'),
+			  value: next ? next.label : '--' },
+			{ id: 'reboot', type: 'action', label: L('重启', 'Reboot'), confirm: true,
+			  note: next ? L(`重启后进入 ${next.label.zh}`, `Boots ${next.label.en}`) : null },
 			{ id: 'poweroff', type: 'action', label: L('关机', 'Power off'), confirm: true,
 			  note: L('插着 USB 时可能会进入充电模式', 'With USB plugged in it may start in charging mode') },
 			{ id: 'android_once', type: 'action', label: L('下次启动 Android', 'Boot Android once'), confirm: true,
