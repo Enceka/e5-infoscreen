@@ -143,6 +143,10 @@ const network = {
 			push(opts, { value: cur_cell, label: L(`已锁定 ${uc(p[0])} PCI ${p[2]} · ${p[1]}`, `locked ${uc(p[0])} PCI ${p[2]} · ${p[1]}`) });
 		}
 		return [
+			{ id: 'sim_card', type: 'choice', label: L('SIM 卡', 'SIM card'), confirm: true,
+			  value: ctx.uci().get('e5-sim', 'main', 'card') ?? `${ctx.sim_card()}`,
+			  options: [ { value: '0', label: L('卡 1', 'SIM 1') }, { value: '1', label: L('卡 2', 'SIM 2') } ],
+			  note: L('上网用的卡；切换时会重新连接网络', 'The card that carries data; the connection restarts on a change') },
 			{ id: 'apn', type: 'choice', label: L('APN', 'APN'),
 			  value: (ctx.uci().get('network', 'wan', 'apn_auto') == '1') ? 'auto' : ctx.uci().get('network', 'wan', 'apn'),
 			  options: apn_options(), confirm: true,
@@ -172,6 +176,18 @@ const network = {
 		];
 	},
 	set: function(id, value) {
+		if (id == 'sim_card') {
+			if (value != '0' && value != '1') return 'unknown card';
+			// e5-linux's e5-sim: the modem's port to that card, then wan again
+			// (tens of seconds; the page sees the new card come up).  The
+			// choice reads back at once: e5-sim keeps it in the same option.
+			let c = ctx.uci();
+			c.set('e5-sim', 'main', 'card', value);
+			c.commit('e5-sim');
+			ctx.forget('modem');
+			ctx.run(`(/usr/sbin/e5-sim ${value}) >/dev/null 2>&1 &`);
+			return null;
+		}
 		if (id == 'apn') {
 			let ok = false;
 			for (let o in apn_options())

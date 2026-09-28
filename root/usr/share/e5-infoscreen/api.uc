@@ -37,7 +37,6 @@ import { readfile, writefile, popen, open, stat, glob, lsdir, lstat } from 'fs';
 import { connect } from 'ubus';
 import { cursor } from 'uci';
 
-const WAN_DEV = 'sipa_eth0';
 const WLAN_DEV = 'wlan0';
 const USB_HOST_MAC = '02:50:00:00:e5:02';   // the gadget's host_addr
 const MODEM_TTL = 10;                        // seconds
@@ -279,11 +278,26 @@ function modem_status() {
 	return r;
 }
 
+// the SIM card the modem is for (e5-linux's e5-sim: sipc_wwan card=), and
+// with it the data interface: the CP puts the first card's data on SIPA net
+// id 0, the second card's on net id 8
+function sim_card() {
+	return (trim(readfile('/sys/module/sipc_wwan/parameters/card') ?? '') == '1') ? 1 : 0;
+}
+
+function wan_dev() {
+	return sim_card() ? 'sipa_eth8' : 'sipa_eth0';
+}
+
 function traffic() {
-	let base = `/sys/class/net/${WAN_DEV}/statistics/`;
+	let dev = wan_dev();
+	let base = `/sys/class/net/${dev}/statistics/`;
 	let rx = read_num(base + 'rx_bytes'), tx = read_num(base + 'tx_bytes');
 	let t = now();
 	let prev = state_get('traffic');
+	// (another card's interface: its counters are not the previous poll's)
+	if (prev && prev.dev != dev)
+		prev = null;
 	let r = { rx_total: rx, tx_total: tx, rx_rate: null, tx_rate: null };
 	// (a counter that went down is a new bearer: no rate for this one poll)
 	if (rx != null && prev && t > prev.t && t - prev.t < 60 && rx >= prev.rx && tx >= prev.tx) {
@@ -293,7 +307,7 @@ function traffic() {
 	}
 	// a sample less than a second old is kept: two quick polls would divide by ~0
 	if (rx != null && (!prev || t - prev.t >= 1 || rx < prev.rx))
-		state_put('traffic', { t, rx, tx });
+		state_put('traffic', { t, rx, tx, dev });
 	return r;
 }
 
@@ -560,7 +574,7 @@ function traffic_iface(dev) {
 }
 
 function traffic_usage() {
-	let wan = traffic_iface(WAN_DEV);
+	let wan = traffic_iface(wan_dev());
 	// (the WAN's fields at the top level too, as in the first version)
 	return { ...wan, wan, lan: traffic_iface('br-lan') };
 }
@@ -831,6 +845,7 @@ function make_ctx(ns) {
 		forget: (name) => system(`rm -f ${RUN}/${pre}${name}.json`),
 		modem: modem_status,
 		modem_present: () => modem_status().present,
+		sim_card,
 		cells,
 		lte_bands, nr_bands, cell_locks,
 		NR_V1, NR_V3, NR_SUPER
@@ -1056,7 +1071,7 @@ function status() {
 		// with it (WebKit has no zoneinfo here and would use UTC)
 		tz_offset: timegm(lt) - t,
 		clock: sprintf('%02d:%02d', lt.hour, lt.min),
-		modem: { ...m, qos: qos_status(m) },
+		modem: { ...m, sim_card: sim_card(), qos: qos_status(m) },
 		wan: wan_status(),
 		traffic: traffic(),
 		wifi: wifi_status(),

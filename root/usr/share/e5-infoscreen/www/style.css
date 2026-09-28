@@ -46,6 +46,16 @@ html, body {
 	background: var(--accent); color: #000;
 }
 .badge.off { background: var(--line); color: var(--dim); }
+/* the SIM card in use: a card with its corner cut, the slot number on it */
+.sim {
+	display: inline-flex; align-items: center; justify-content: center;
+	width: 11px; height: 14px; padding-top: 1px; box-sizing: border-box;
+	font-size: 10px; font-weight: bold; line-height: 1;
+	background: var(--text); color: #000; border-radius: 1.5px;
+	-webkit-clip-path: polygon(0 0, 62% 0, 100% 28%, 100% 100%, 0 100%);
+	clip-path: polygon(0 0, 62% 0, 100% 28%, 100% 100%, 0 100%);
+}
+.sim:empty { display: none; }
 
 .bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
 .bars i { display: block; width: 4px; background: var(--line); border-radius: 1px; }

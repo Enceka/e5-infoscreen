@@ -1,7 +1,8 @@
 #!/bin/sh
 # Traffic accounting for the info screen's traffic page: vnstat counts the
-# modem's data interface (sipa_eth0, WAN) and the LAN bridge (br-lan), day by
-# day and month by month.  Its
+# modem's data interfaces (WAN: sipa_eth0 for the first SIM card, sipa_eth8
+# for the second) and the LAN bridge (br-lan), day by day and month by
+# month.  Its
 # database goes to /etc/vnstat -- the package's /var/lib/vnstat is RAM on
 # OpenWrt, and a month's total must survive a reboot.
 [ -f /etc/vnstat.conf ] || exit 0
@@ -10,8 +11,8 @@ sed -i 's|^;*DatabaseDir .*|DatabaseDir "/etc/vnstat"|' /etc/vnstat.conf
 # written every minute, not every 5: the page's today and month are the database's
 sed -i 's|^;*SaveInterval .*|SaveInterval 1|' /etc/vnstat.conf
 uci -q get vnstat.@vnstat[0] >/dev/null || uci -q add vnstat vnstat >/dev/null
-# WAN: the modem's data interface; LAN: the bridge of the USB port and the hotspot
-for i in sipa_eth0 br-lan; do
+# WAN: the modem's data interfaces; LAN: the bridge of the USB port and the hotspot
+for i in sipa_eth0 sipa_eth8 br-lan; do
 	uci -q del_list vnstat.@vnstat[0].interface=$i
 	uci add_list vnstat.@vnstat[0].interface=$i
 done

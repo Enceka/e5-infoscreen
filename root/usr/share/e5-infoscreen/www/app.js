@@ -191,6 +191,7 @@ function wanWord(st) {
 
 function renderBar(st) {
 	const m = st.modem;
+	setText('bar-sim', m.sim_card == null ? '' : String(m.sim_card + 1));
 	setText('bar-op', m.operator ?? (m.present ? t('searching') : t('no_modem')));
 	const tech = $('bar-tech');
 	setText('bar-tech', m.tech ? techName(m.tech) : '--');

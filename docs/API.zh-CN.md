@@ -56,7 +56,7 @@
 
 `GET /status` 的内容与英文版相同（见 [`API.md`](API.md) 第 2 节的示例）：`modem`、`wan`、
 `traffic`（`rx_rate`/`tx_rate` 为距上次读取的每秒字节数，第一次为 `null`）、`wifi`、
-`clients`、`battery`、`system`（含 `disk_total`/`disk_used`：根文件系统，`df /`，缓存 60 秒）、`screen`、`sms`。模组部分缓存 10 秒。`modem.qos` 是签约速率：网络给数据上下文（cid 1）的聚合最大比特率（AMBR），单位 kbit/s，附 QCI（LTE，`AT+CGEQOSRDP=1`）或 5QI（`nr`，`AT+C5GQOSRDP=1`）；缓存 60 秒，没有承载时为 `null`。
+`clients`、`battery`、`system`（含 `disk_total`/`disk_used`：根文件系统，`df /`，缓存 60 秒）、`screen`、`sms`。模组部分缓存 10 秒，`modem.sim_card` 除外：模组对应的 SIM 卡，0 或 1（e5-linux 的 `e5-sim`），每次现读；数据接口跟着它走（`sipa_eth0`、`sipa_eth8`）。`modem.qos` 是签约速率：网络给数据上下文（cid 1）的聚合最大比特率（AMBR），单位 kbit/s，附 QCI（LTE，`AT+CGEQOSRDP=1`）或 5QI（`nr`，`AT+C5GQOSRDP=1`）；缓存 60 秒，没有承载时为 `null`。
 
 ## 3. 设置项
 
@@ -199,6 +199,7 @@ return function(ctx) {
 | `ctx.at(cmd, timeout)` | 通过 ModemManager 发 AT 指令（AT 通道只有一个所有者），返回不含 `OK` 的回复或 `null`；不拒绝任何指令 |
 | `ctx.at_console(cmd, timeout)` | 同 `POST /at`：`{ ok, reply }` 或 `{ ok: false, error }`，对可能让基带直到重启前不可用的指令带 `warning: true` |
 | `ctx.modem()` | `/status` 中的 `modem` 部分 |
+| `ctx.sim_card()` | 模组对应的 SIM 卡，0 或 1 |
 | `ctx.cells()` | 服务小区和邻区，`[ { type, serving, pci, arfcn, band, rsrp, rsrq, sinr, bandwidth_mhz } ]` |
 | `ctx.ubus(对象, 方法, 参数)` | ubus 调用，返回回复或 `null` |
 | `ctx.uci()` | uci cursor（`get`、`set`、`commit`、`foreach` 等） |

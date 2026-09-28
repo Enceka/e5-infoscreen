@@ -68,7 +68,7 @@ for version 1 of all three.
 {
   "time": 1790479780, "tz_offset": 28800, "clock": "10:46",
   "modem": { "present": true, "state": "connected", "operator": "CHINA BROADNET",
-             "registration": "home", "tech": "5gnr", "quality": 67, "sim": true,
+             "registration": "home", "tech": "5gnr", "quality": 67, "sim": true, "sim_card": 0,
              "signal": { "rsrp": -103.0, "rsrq": -22.5, "snr": -10.5 },
              "cell": { "type": "5gnr", "serving": true, "pci": 169, "arfcn": 504990,
                        "band": "n41", "rsrp": -97.3, "rsrq": -12.3, "sinr": 4.6,
@@ -92,7 +92,9 @@ Rates are bytes per second over the time since the previous poll (`null` on
 the first).  `battery.limit` is the charge limit when one is on (e5-linux's
 `e5-charge`), `paused` whether it has stopped charging -- the gauge's own
 `status` then reads `Full` or `Not charging`.  `system.disk_*` is the root
-filesystem (`df /`, cached 60 s).  The modem part is cached for 10 s.  `modem.qos` is the
+filesystem (`df /`, cached 60 s).  The modem part is cached for 10 s, except
+`modem.sim_card`: the SIM card the modem is for, 0 or 1 (e5-linux's `e5-sim`), read
+each time; the data interface follows it (`sipa_eth0`, `sipa_eth8`).  `modem.qos` is the
 subscribed rate: the aggregate maximum bit rate the network grants the data
 context (cid 1), in kbit/s, with its QCI (LTE, `AT+CGEQOSRDP=1`) or 5QI (`nr`,
 `AT+C5GQOSRDP=1`); cached 60 s, `null` without a bearer.
@@ -243,6 +245,7 @@ return function(ctx) {
 | `ctx.at(cmd, timeout)` | an AT command through ModemManager (the AT channel has one owner), the reply without `OK`, or `null`; nothing is refused |
 | `ctx.at_console(cmd, timeout)` | the same as `POST /at`: `{ ok, reply }` or `{ ok: false, error }`, with `warning: true` for a command that can leave the modem's AT server or SIM dead until a reboot |
 | `ctx.modem()` | the `modem` part of `/status` |
+| `ctx.sim_card()` | the SIM card the modem is for, 0 or 1 |
 | `ctx.cells()` | the serving and neighbour cells, `[ { type, serving, pci, arfcn, band, rsrp, rsrq, sinr, bandwidth_mhz } ]` |
 | `ctx.ubus(object, method, args)` | a ubus call, its reply or `null` |
 | `ctx.uci()` | a uci cursor (`get`, `set`, `commit`, `foreach`, ...) |
