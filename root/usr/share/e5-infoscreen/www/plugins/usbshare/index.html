@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<style>
+	html, body { margin: 0; background: #0b0e13; color: #e8ecf2;
+		font-family: "Noto Sans CJK SC", "DejaVu Sans", sans-serif; user-select: none; cursor: none; }
+	body { padding: 8px; }
+	.card { background: #161b23; border-radius: 10px; padding: 8px 11px; margin-bottom: 6px; }
+	.row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+	.k { color: #8b95a5; font-size: 12px; }
+	.v { font-weight: bold; font-variant-numeric: tabular-nums; }
+	.sub { color: #8b95a5; font-size: 12px; }
+	.good { color: #3ccf7a; } .warn { color: #f2c14b; } .bad { color: #f0625a; }
+	button { font: inherit; font-size: 13px; font-weight: bold; color: #e8ecf2; background: #232a35;
+		border: 0; border-radius: 8px; padding: 8px; width: 100%; outline: none; }
+	.b { margin-bottom: 5px; }
+	/* the switch is a button too: the keypad's confirm key and a tap both work */
+	.tgl { background: #1c222b; padding: 6px 9px; margin-bottom: 4px; text-align: left; }
+	.focus { box-shadow: 0 0 0 2px #fff; }
+	#tip { font-size: 11px; color: #6d7788; margin-top: 4px; }
+	#s-parts { margin-top: 3px; }
+</style>
+</head>
+<body>
+<div class="card">
+	<div class="row"><span class="k">USB 供网</span><span class="v" id="s-up">--</span></div>
+	<div class="sub" id="s-parts"></div>
+</div>
+<button class="tgl row" id="r-guard"><span class="k" id="k-guard">断线自动修复</span><span class="v" id="g-guard">--</span></button>
+<div class="row sub" id="g-note" style="padding:0 4px 7px"></div>
+<button class="b" id="b-fix"></button>
+<div id="tip"></div>
+<script src="/sdk/e5.js"></script>
+<script>
+'use strict';
+// USB 供网：这条路给不给 PC 上网，分三段看（链路 / 设备的出口 / 给没给 PC 网关），
+// 一个开关管断线自动修复，一个按钮重绑并把缺的补回来。
+// （后端 backend.uc：GET /status、POST /fix|settings；同样的两个设置项也在“高级”里。）
+const $ = (id) => document.getElementById(id);
+const T = (zh, en) => e5.t({ zh: zh, en: en });
+let busy = false, focus = 0, data = null;
+
+// 后端只回原因码，文案留在这边
+const WHY = {
+	unbound:    [ '未绑定', 'unbound' ],
+	'no-enum':  [ '主机未枚举', 'not enumerating' ],
+	'no-host':  [ '未接入主机', 'no host' ],
+	'no-netdev':[ '无 usb0', 'no usb0' ],
+	'no-carrier':[ '无链路', 'no link' ],
+	'no-bridge':[ '不在 br-lan', 'not in br-lan' ],
+	'no-wan':   [ '设备自己没出口', 'the device has no uplink' ],
+	'no-gw':    [ '没给 PC 网关', 'no gateway handed to the PC' ]
+};
+
+function esc(s) {
+	return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function draw(st) {
+	data = st;
+	const g = st.guard, why = st.why ? (WHY[st.why] ?? [ '未知', 'unknown' ]) : null;
+
+	const s = $('s-up');
+	s.textContent = st.up ? T('正常', 'up') : T('异常', 'down');
+	s.className = 'v ' + (st.up ? 'good' : 'bad');
+
+	// 三段各报自己：哪一段红，就是哪一段的问题
+	const span = (t, cls) => `<span class="${cls}">${esc(t)}</span>`;
+	const dot = '<span class="k"> · </span>';
+	const link = st.link ? T('线通', 'cable up') : T(...(why ?? [ '链路断', 'cable down' ]));
+	$('s-parts').innerHTML =
+		span(link, st.link ? 'good' : 'bad') + dot +
+		span(st.wan ? T('上行通', 'uplink up') : T('上行断', 'uplink down'), st.wan ? 'good' : 'bad') + dot +
+		span(st.gw ? T('已下发网关', 'gateway given') : T('未给网关', 'no gateway'), st.gw ? 'good' : 'bad');
+
+	// 开关是设置，不是进程：显示的是“守护该做什么”，进程本身在下一行说
+	const gg = $('g-guard');
+	gg.textContent = g.on ? T('开', 'on') : T('关', 'off');
+	gg.className = 'v ' + (!g.running ? 'bad' : (g.on ? 'good' : 'warn'));
+	$('g-note').textContent = !g.running ? T('守护进程未运行', 'guard not running')
+		: g.on ? T(`守护运行中 · 每 ${g.interval} 秒检查`, `guard running · every ${g.interval} s`)
+		: T('守护运行中，但已关闭', 'guard running, switched off');
+}
+
+async function refresh() {
+	if (busy) return;
+	try {
+		draw(await e5.api('/status'));
+	} catch (e) { /* 拉不到就保留上一次的画面 */ }
+}
+
+// 立即修复：重绑 gadget、把 usb0 放回 br-lan、缺网关就补回来（约 1 秒）
+async function fix() {
+	if (busy) return;
+	busy = true;
+	e5.keepAwake(true);
+	const el = $('b-fix');
+	el.textContent = T('修复中…', 'repairing…');
+	e5.toast(T('重新绑定 gadget…', 'rebinding the gadget…'));
+	try {
+		await e5.api('/fix', { method: 'POST' });
+		draw(await e5.api('/status'));
+		e5.toast(data.up ? T('供网正常', 'the PC can be online') : T('仍未恢复', 'still down'));
+	} catch (e) {
+		e5.toast(String(e.message ?? e));
+	}
+	el.textContent = T('立即修复', 'Repair now');
+	e5.keepAwake(false);
+	busy = false;
+}
+
+// 开/关断线自动修复：先按意图显示，再用后端回读的值校准
+async function toggleGuard() {
+	if (busy) return;
+	busy = true;
+	const on = !(data?.guard.on ?? true);
+	if (data) {
+		data.guard.on = on;
+		draw(data);
+	}
+	e5.toast(T('断线自动修复：', 'auto-repair: ') + (on ? T('开', 'on') : T('关', 'off')));
+	try {
+		await e5.api('/settings', { body: { guard: on } });
+		draw(await e5.api('/status'));
+	} catch (e) {
+		e5.toast(String(e.message ?? e));
+		draw(await e5.api('/status').catch(() => data));
+	}
+	busy = false;
+}
+
+/* 可操作项，按上下键的顺序；开关排第一，打开页面直接按确认就能切换 */
+const items = [
+	{ el: $('r-guard'), labelEl: $('k-guard'), run: toggleGuard,
+		label: () => T('断线自动修复', 'Auto-repair') },
+	{ el: $('b-fix'), run: fix, label: () => T('立即修复', 'Repair now') }
+];
+
+function paint() {
+	items.forEach((it, i) => it.el.classList.toggle('focus', i == focus));
+}
+function move(d) {
+	focus = (focus + d + items.length) % items.length;
+	paint();
+}
+
+function labels() {
+	for (const it of items) {
+		if (it.labelEl) it.labelEl.textContent = it.label();
+		else it.el.textContent = it.label();
+	}
+	$('tip').textContent = T('上下键：选择　确认键：执行', 'up/down: select  confirm: run');
+	if (data) draw(data);
+}
+
+e5.onKey((k) => {
+	if (k.kind == 'up') { move(-1); return true; }
+	if (k.kind == 'down') { move(1); return true; }
+	if (k.kind == 'ok') { e5.press(items[focus].el); return true; }
+	return false;
+});
+
+items.forEach((it, i) => {
+	it.el.addEventListener('click', () => { focus = i; paint(); it.run(); });
+	it.el.addEventListener('focus', () => { focus = i; paint(); });
+});
+
+e5.onLang(labels);
+labels();
+paint();
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>

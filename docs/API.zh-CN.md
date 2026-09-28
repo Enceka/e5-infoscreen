@@ -226,5 +226,6 @@ tar -czf nettest-1.0.tar.gz -C www/plugins nettest     # 或：cd www/plugins &&
 镜像里。可以在 LuCI、屏幕上（高级 → 应用管理）或用 `plugin remove ID` 卸载。`GET /plugins` 的每个 manifest 带
 `builtin`（镜像自带的为 true）；`POST /plugins-remove { id }` 卸载。
 
-`www/plugins/` 下的两个插件就是示例：`calculator`（页面、按键、`onBack`）和
-`nettest`（后端、设置项、`keepAwake`）。
+`www/plugins/` 下的三个插件就是示例：`calculator`（页面、按键、`onBack`）和
+`nettest`（后端、设置项、`keepAwake`），以及 `usbshare`（后端 + 一个随系统起停的守护，
+见 `docs/USB-SHARE.md`）。

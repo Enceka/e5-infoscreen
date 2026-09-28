@@ -277,5 +277,6 @@ image.  Uninstall in LuCI, on the screen (高级 -> 应用管理) or with
 `plugin remove ID`.  `GET /plugins` marks each manifest `builtin` (true for the
 image's own); `POST /plugins-remove { id }` uninstalls.
 
-The two plugins in `www/plugins/` are the examples: `calculator` (a page, keys,
-`onBack`) and `nettest` (a backend, settings, `keepAwake`).
+The three plugins in `www/plugins/` are the examples: `calculator` (a page, keys,
+`onBack`), `nettest` (a backend, settings, `keepAwake`) and `usbshare` (a backend
+plus a daemon that starts and stops with the service -- [`USB-SHARE.md`](USB-SHARE.md)).

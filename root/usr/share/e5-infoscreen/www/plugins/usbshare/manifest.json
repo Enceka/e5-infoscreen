@@ -1,0 +1,49 @@
+{
+ "id": "usbshare",
+ "api_version": 1,
+ "version": "1.5",
+ "name": {
+  "zh": "USB 供网",
+  "en": "USB uplink"
+ },
+ "description": {
+  "zh": "USB 供网的状态与修复",
+  "en": "State and repair of the USB uplink for the PC"
+ },
+ "entry": "index.html",
+ "order": 20,
+ "settings": [
+  {
+   "id": "guard",
+   "type": "toggle",
+   "uci": "e5-plugin-usbshare.settings.guard",
+   "default": "1",
+   "label": {
+    "zh": "断线自动修复",
+    "en": "Auto-repair"
+   },
+   "note": {
+      "zh": "重新插拔 USB 后内核可能不再枚举设备（docs/USB-SHARE.md 2）。开启时由守护重绑 gadget 并把 usb0 放回 br-lan。",
+      "en": "After a replug the kernel may stop enumerating the device (docs/USB-SHARE.md 2). While on, the guard rebinds the gadget and puts usb0 back into br-lan."
+   }
+  },
+  {
+   "id": "interval",
+   "type": "number",
+   "uci": "e5-plugin-usbshare.settings.interval",
+   "default": "3",
+   "min": 1,
+   "max": 60,
+   "step": 1,
+   "unit": "s",
+   "label": {
+    "zh": "检查间隔",
+    "en": "Check interval"
+   },
+   "note": {
+    "zh": "守护两次检查之间等待的秒数，改完立即生效。",
+    "en": "Seconds the guard waits between two checks; a change takes effect at once."
+   }
+  }
+ ]
+}
