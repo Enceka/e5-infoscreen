@@ -42,8 +42,8 @@
 | `POST /donate-seen` | 赞赏码已经显示过：写入 `/etc/config/e5-infoscreen` 的 `donate_seen`，以后开机不再弹出 |
 | `POST /vibrate` | `{ ms }`：马达振动一次，20-1000 毫秒（e5-linux 的 `e5-vibrate`） |
 | `GET /advanced` | 设备、基带、锁定、SIM 的详细信息（“高级信息”页） |
-| `GET /bluetooth` | `{ available, adapter, powered, discovering, name, devices: [ { mac, name, paired, connected, state, icon } ] }`：bluetoothd 的状态；没有名字的设备（BLE 信标）不列出；`state` 是 e5-linux 的 `e5-bt-connect` 进度：`pairing`、`connecting`、`failed: <原因>`（`notfound`、`forgot`、`noanswer` 或 bluetoothd 的错误） |
-| `POST /bluetooth` | `{ action: "power", on }`、`{ action: "scan" }`（20 秒）、`{ action: "connect"\|"disconnect"\|"remove", mac }`，返回 `{ ok, error }` 加上 `GET` 的内容；`connect` 在后台进行（轮询 `GET`） |
+| `GET /bluetooth` | `{ available, adapter, autostart, powered, discovering, name, devices: [ { mac, name, paired, connected, state, icon } ] }`：bluetoothd 的状态；没有名字的设备（BLE 信标）不列出；`state` 是 e5-linux 的 `e5-bt-connect` 进度：`pairing`、`connecting`、`failed: <原因>`（`notfound`、`forgot`、`noanswer` 或 bluetoothd 的错误） |
+| `POST /bluetooth` | `{ action: "power", on }`、`{ action: "autostart", on }`（开机启动：e5-linux 的 `e5-bluetooth.main.autostart`，即 bluetoothd 的 AutoEnable）、`{ action: "scan" }`（20 秒）、`{ action: "connect"\|"disconnect"\|"remove", mac }`，返回 `{ ok, error }` 加上 `GET` 的内容；`connect` 在后台进行（轮询 `GET`） |
 | `GET /volume` | `{ available, level, max, card, output }`：音量（`output` 为 `speaker` 或 `bluetooth`，即声音从哪里出）；扬声器音量（e5-linux 的 `e5-volume`），0 为静音，最大 `max`（15）；没有该程序时 `available: false` |
 | `POST /volume` | `{ step: 1\|-1 }` 或 `{ level }`，返回同 `GET` |
 | `GET /identity` | `{ imei, iccid, imsi, numbers[] }` |

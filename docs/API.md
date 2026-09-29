@@ -50,8 +50,8 @@ for version 1 of all three.
 | `POST /donate-seen` | the 赞赏码 was shown: `donate_seen` in `/etc/config/e5-infoscreen`, so it is not shown at start again |
 | `POST /vibrate` | `{ ms }`: one pulse of the motor, 20-1000 ms (e5-linux's `e5-vibrate`) |
 | `GET /advanced` | device, baseband, locks, SIM details (the 高级信息 page) |
-| `GET /bluetooth` | `{ available, adapter, powered, discovering, name, devices: [ { mac, name, paired, connected, state, icon } ] }`: bluetoothd's view; unnamed devices (BLE beacons) left out; `state` is e5-linux's `e5-bt-connect` progress: `pairing`, `connecting`, `failed: <reason>` (`notfound`, `forgot`, `noanswer`, or bluetoothd's) |
-| `POST /bluetooth` | `{ action: "power", on }`, `{ action: "scan" }` (20 s), `{ action: "connect"\|"disconnect"\|"remove", mac }` -> `{ ok, error }` + the same as `GET`; `connect` runs in the background (poll `GET`) |
+| `GET /bluetooth` | `{ available, adapter, autostart, powered, discovering, name, devices: [ { mac, name, paired, connected, state, icon } ] }`: bluetoothd's view; unnamed devices (BLE beacons) left out; `state` is e5-linux's `e5-bt-connect` progress: `pairing`, `connecting`, `failed: <reason>` (`notfound`, `forgot`, `noanswer`, or bluetoothd's) |
+| `POST /bluetooth` | `{ action: "power", on }`, `{ action: "autostart", on }` (on at boot: e5-linux's `e5-bluetooth.main.autostart`, bluetoothd's AutoEnable), `{ action: "scan" }` (20 s), `{ action: "connect"\|"disconnect"\|"remove", mac }` -> `{ ok, error }` + the same as `GET`; `connect` runs in the background (poll `GET`) |
 | `GET /volume` | `{ available, level, max, card, output }`: the volume (`output`: `speaker` or `bluetooth`, where the sound goes); the speaker volume (e5-linux's `e5-volume`), 0 mute - `max` (15); `available: false` without it |
 | `POST /volume` | `{ step: 1\|-1 }` or `{ level }` -> the same as `GET` |
 | `GET /identity` | `{ imei, iccid, imsi, numbers[] }` |

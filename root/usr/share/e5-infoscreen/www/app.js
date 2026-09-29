@@ -32,7 +32,7 @@ const I18N = {
 		since_boot: '本次开机', network: '网络', clients: '在线设备', battery: '电池',
 		bandwidth: '带宽', neighbours: '邻区', uptime: '开机时长', wan_uptime: '联网时长',
 		load: '负载', memory: '内存', subscribed: '签约速率', volume: '音量', muted: '静音', paused_short: '暂停', app_builtin: '内置', app_user: '已安装', app_version: '版本', app_kind: '来源', app_desc: '说明', app_open: '打开', app_remove: '卸载', app_removed: '已卸载', app_builtin_note: '内置应用卸载后，下次更新系统镜像时会回来', app_install_note: '安装新应用：在电脑浏览器打开 http://192.168.9.1 → 服务 → 信息屏应用，上传应用包（.tar.gz 或 .zip）',
-		bluetooth: '蓝牙', bt_none: '没有蓝牙适配器', bt_scan: '搜索设备', bt_scanning: '正在搜索…', bt_name: '本机名称', bt_mine: '我的设备', bt_found: '附近的设备', bt_none_found: '没有找到设备，点“搜索设备”', bt_note: '耳机或音箱请先进入配对模式；连接后声音从蓝牙播放', bt_state: '状态', bt_connect: '连接', bt_pair: '配对并连接', bt_disconnect: '断开', bt_remove: '忘记此设备', bt_connected: '已连接', bt_paired: '已配对', bt_pairing: '配对中…', bt_connecting: '连接中…', bt_failed: '连接失败', bt_notfound: '没有找到设备：请让它进入配对模式后再试', bt_forgot: '设备已忘记配对：请让它进入配对模式后再连接', bt_noanswer: '设备没有响应：请打开耳机盒、戴上耳机，并确认它没有连着手机', brightness: '亮度', reconnect: '重新连接网络',
+		bluetooth: '蓝牙', bt_none: '没有蓝牙适配器', bt_autostart: '开机启动', bt_scan: '搜索设备', bt_scanning: '正在搜索…', bt_name: '本机名称', bt_mine: '我的设备', bt_found: '附近的设备', bt_none_found: '没有找到设备，点“搜索设备”', bt_note: '耳机或音箱请先进入配对模式；连接后声音从蓝牙播放', bt_state: '状态', bt_connect: '连接', bt_pair: '配对并连接', bt_disconnect: '断开', bt_remove: '忘记此设备', bt_connected: '已连接', bt_paired: '已配对', bt_pairing: '配对中…', bt_connecting: '连接中…', bt_failed: '连接失败', bt_notfound: '没有找到设备：请让它进入配对模式后再试', bt_forgot: '设备已忘记配对：请让它进入配对模式后再连接', bt_noanswer: '设备没有响应：请打开耳机盒、戴上耳机，并确认它没有连着手机', brightness: '亮度', reconnect: '重新连接网络',
 		show_key: '显示密码', hide_key: '隐藏密码', hs_off: '热点已关闭', hs_down: '热点未启动', on: '开', off: '关',
 		connected: '已连接', connecting: '连接中', disconnected: '未连接',
 		no_modem: '无模组', no_sim: '无 SIM 卡', searching: '搜索网络',
@@ -65,7 +65,7 @@ const I18N = {
 		since_boot: 'Since boot', network: 'Network', clients: 'Clients', battery: 'Battery',
 		bandwidth: 'Bandwidth', neighbours: 'Neighbours', uptime: 'Uptime', wan_uptime: 'Online',
 		load: 'Load', memory: 'Memory', subscribed: 'Subscribed rate', volume: 'Volume', muted: 'Muted', paused_short: 'paused', app_builtin: 'built in', app_user: 'installed', app_version: 'Version', app_kind: 'Source', app_desc: 'About', app_open: 'Open', app_remove: 'Uninstall', app_removed: 'Uninstalled', app_builtin_note: 'A built-in app comes back with the next image update', app_install_note: 'To install an app: open http://192.168.9.1 in a browser -> Services -> Info screen apps, and upload its package (.tar.gz or .zip)',
-		bluetooth: 'Bluetooth', bt_none: 'No Bluetooth adapter', bt_scan: 'Search', bt_scanning: 'Searching…', bt_name: 'Name', bt_mine: 'My devices', bt_found: 'Nearby', bt_none_found: 'Nothing found; press Search', bt_note: 'Put headphones or a speaker in pairing mode first; once connected the sound plays there', bt_state: 'State', bt_connect: 'Connect', bt_pair: 'Pair and connect', bt_disconnect: 'Disconnect', bt_remove: 'Forget', bt_connected: 'Connected', bt_paired: 'Paired', bt_pairing: 'Pairing…', bt_connecting: 'Connecting…', bt_failed: 'Failed', bt_notfound: 'Not found: put it in pairing mode and try again', bt_forgot: 'The device forgot the pairing: put it in pairing mode and connect again', bt_noanswer: 'No answer: take the earbuds out of the case and make sure no phone is connected to them', brightness: 'Brightness', reconnect: 'Reconnect',
+		bluetooth: 'Bluetooth', bt_none: 'No Bluetooth adapter', bt_autostart: 'On at boot', bt_scan: 'Search', bt_scanning: 'Searching…', bt_name: 'Name', bt_mine: 'My devices', bt_found: 'Nearby', bt_none_found: 'Nothing found; press Search', bt_note: 'Put headphones or a speaker in pairing mode first; once connected the sound plays there', bt_state: 'State', bt_connect: 'Connect', bt_pair: 'Pair and connect', bt_disconnect: 'Disconnect', bt_remove: 'Forget', bt_connected: 'Connected', bt_paired: 'Paired', bt_pairing: 'Pairing…', bt_connecting: 'Connecting…', bt_failed: 'Failed', bt_notfound: 'Not found: put it in pairing mode and try again', bt_forgot: 'The device forgot the pairing: put it in pairing mode and connect again', bt_noanswer: 'No answer: take the earbuds out of the case and make sure no phone is connected to them', brightness: 'Brightness', reconnect: 'Reconnect',
 		show_key: 'Show key', hide_key: 'Hide key', hs_off: 'Hotspot off', hs_down: 'Hotspot not up', on: 'On', off: 'Off',
 		connected: 'Connected', connecting: 'Connecting', disconnected: 'Offline',
 		no_modem: 'No modem', no_sim: 'No SIM', searching: 'Searching',
@@ -1072,6 +1072,7 @@ function stRender() {
 		else if (!b.adapter) html = `<div class="sub">${esc(t('bt_none'))}</div>`;
 		else {
 			html = stRow('bt:power', t('bluetooth'), b.powered ? t('on') : t('off'), { on: b.powered }) +
+				(b.autostart != null ? stRow('bt:autostart', t('bt_autostart'), b.autostart ? t('on') : t('off'), { on: b.autostart }) : '') +
 				(b.powered ? stRow('bt:scan', b.discovering ? t('bt_scanning') : t('bt_scan'), '') : '') +
 				(b.name ? stRow('info:btname', t('bt_name'), b.name, { info: true }) : '');
 			const mine = b.devices.filter((d) => d.paired || d.connected), found = b.devices.filter((d) => !d.paired && !d.connected);
@@ -1279,7 +1280,8 @@ async function stClick(key, el) {
 	if (k == 'bt') {
 		const b = v.bt;
 		if (!b) return;
-		await btPost(v, arg == 'power' ? { action: 'power', on: !b.powered } : { action: 'scan' });
+		await btPost(v, arg == 'power' ? { action: 'power', on: !b.powered } :
+			arg == 'autostart' ? { action: 'autostart', on: !b.autostart } : { action: 'scan' });
 		if (arg == 'scan') toast(t('bt_scanning'));
 		return;
 	}

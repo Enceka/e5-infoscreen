@@ -23,6 +23,7 @@
 //   POST /api/backlight      {"level": 0-255, "save": true|false}
 //   POST /api/wan-reconnect
 //   POST /api/key            {"key": ..., "code": ..., "keyCode": ...}  (key log)
+//   GET  /api/bluetooth      the adapter and devices;  POST /api/bluetooth {"action", ...}
 //   GET  /api/settings       the settings categories;  GET /api/settings/<c> its items
 //   POST /api/settings/<c>   {"id": ..., "value": ...} -> the item, read back
 //   GET  /api/devices        the LAN's devices;  POST /api/devices {"mac", "action"}
@@ -1206,6 +1207,8 @@ function bluetooth_status() {
 	devs = sort(devs, (a, b) => (b.connected - a.connected) || (b.paired - a.paired) || ((a.name < b.name) ? -1 : 1));
 	return {
 		available: true, adapter: true,
+		// on at boot (e5-linux's e5-bluetooth.main.autostart, bluetoothd's AutoEnable)
+		autostart: cursor().get('e5-bluetooth', 'main', 'autostart') != '0',
 		powered: match(show, /Powered: yes/) != null,
 		discovering: match(show, /Discovering: yes/) != null,
 		name: match(show, /Alias: ([^\n]+)/)?.[1],
@@ -1220,6 +1223,15 @@ function bluetooth_action(b) {
 		return system(`bluetoothctl power ${b.on ? 'on' : 'off'} >/dev/null 2>&1`) == 0 ? null : 'failed';
 	if (a == 'scan') {
 		system('(bluetoothctl --timeout 20 scan on </dev/null >/dev/null 2>&1 &)');
+		return null;
+	}
+	if (a == 'autostart') {
+		let c = cursor();
+		if (c.get('e5-bluetooth', 'main') == null)
+			return 'no e5-bluetooth';
+		c.set('e5-bluetooth', 'main', 'autostart', b.on ? '1' : '0');
+		c.commit('e5-bluetooth');
+		system('[ -x /usr/libexec/e5-bt-autostart ] && /usr/libexec/e5-bt-autostart');
 		return null;
 	}
 	if (!bt_mac_ok(mac))
