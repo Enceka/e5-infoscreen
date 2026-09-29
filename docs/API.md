@@ -41,6 +41,7 @@ for version 1 of all three.
 | `GET /sms` | `{ messages: [ { id, number, text, time, state, type, unread } ] }`, newest first; `time` ISO 8601 |
 | `POST /sms-read` | all messages seen (clears the unread list) |
 | `POST /sms-delete` | `{ id }` -- deletes the message from the SIM/modem |
+| `POST /sms-send` | `{ number, text, card }` -- sends a message (e5-linux's `/usr/libexec/e5-sms`, through ModemManager); `{ ok: true, id, sim }`, or 400 with `{ ok: false, error }`.  `card` (optional) 0 or 1: from that SIM card -- the other one than the card in use is switched to first (`e5-sim`; the data connection moves with it, and the send waits for its registration, up to 2 minutes); without it, the card in use.  The text up to 4000 bytes (about 1300 Chinese characters), split into parts by the modem. |
 | `GET /qr` | the hotspot's join code, `image/svg+xml` |
 | `GET /wifi-key` | `{ key }` -- the hotspot passphrase |
 | `POST /wifi` | `{ on: true\|false }` -- hotspot on/off |
@@ -186,6 +187,7 @@ footer below: about 320×424 CSS pixels).  Load the SDK first:
 | `e5.id`, `e5.lang`, `e5.version` | the plugin's id, `zh`/`en`, the API version |
 | `e5.api(path, { body, method })` | `fetch` of `/api/plugins/<id><path>`; with `body` it is a POST of JSON; resolves to the reply (JSON or text), rejects with `.status` and `.data` on a non-2xx |
 | `e5.core(path, opts)` | the same for the core API, `/api/<path>` (section 2) |
+| `e5.sms.list()`, `e5.sms.send(number, text, card)` | the messages (`GET /sms`); sending one (`POST /sms-send`, `card` optional), rejects with the error |
 | `e5.onKey(fn)` | `fn({ kind, key, code, repeat })` for each key; return `true` when taken |
 | `e5.onBack(fn)` | `fn()` on back when `onKey` did not take it; return `true` to stay, anything else closes the plugin |
 | `e5.onLang(fn)` | the screen's language changed, `fn(lang)` |

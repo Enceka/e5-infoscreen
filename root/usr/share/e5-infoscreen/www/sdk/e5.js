@@ -115,6 +115,18 @@
 		api: (path, opts) => call(`/api/plugins/${id}${path.startsWith('/') ? path : '/' + path}`, opts),
 		/* the info screen's own API: /api/<path> (docs/API.md, "Core API") */
 		core: (path, opts) => call(`/api/${path.replace(/^\//, '')}`, opts),
+		/* text messages: the list (newest first), and sending one -- resolves to
+		   { ok: true, id, sim }, rejects with the error.  card 0|1: from that SIM
+		   card (another than the one in use is switched to first, the data
+		   connection with it); none: the card in use */
+		sms: {
+			list: () => call('/api/sms').then((r) => r.messages),
+			send: (number, text, card) => call('/api/sms-send', {
+				body: card === 0 || card === 1
+					? { number: String(number), text: String(text), card }
+					: { number: String(number), text: String(text) }
+			})
+		},
 		onKey: (fn) => { keyFn = fn; },
 		onBack: (fn) => { backFn = fn; },
 		onLang: (fn) => { langFn = fn; },

@@ -13,6 +13,7 @@
 //   GET  /api/sms            the messages, newest first, and which are unread
 //   POST /api/sms-read       the messages have been seen (e5-sms-notify read)
 //   POST /api/sms-delete     {"id": N}
+//   POST /api/sms-send       {"number": "...", "text": "...", "card": 0|1} -> {ok, error} (e5-linux's e5-sms)
 //   GET  /api/traffic        today's, this month's and the last days' traffic (vnstat)
 //   POST /api/at             {"cmd": "AT+...", "timeout": s} -> {ok, reply|error}
 //   GET  /api/at/presets     the screen's list of AT reads
@@ -510,6 +511,7 @@ function sms_list() {
 	let lj = sh_json('mmcli -J -m any --timeout=5 --messaging-list-sms 2>/dev/null');
 	let paths = lj?.['modem.messaging.sms'] ?? lj?.modem?.messaging?.sms ?? [];
 	let unread = {}, list = [], live = {}, cache = state_get('sms') ?? {};
+	let sim = (trim(readfile('/sys/module/sipc_wwan/parameters/card') ?? '0') == '1') ? 'SIM2' : 'SIM1';
 	for (let id in sms_unread())
 		unread[id] = true;
 	for (let p in paths) {
@@ -520,7 +522,8 @@ function sms_list() {
 		if (!msg || msg.type == 'submit')     // (the ones this device sent)
 			continue;
 		live[msg.id] = true;
-		push(list, { ...msg, unread: !!unread[msg.id] });
+		// (ModemManager has the card in use only: every message listed is its)
+		push(list, { ...msg, unread: !!unread[msg.id], sim: sim });
 	}
 	for (let id in keys(cache))
 		if (!live[id])
@@ -544,6 +547,29 @@ function sms_delete(id) {
 		writefile(SMS_UNREAD, length(rest) ? join('\n', rest) + '\n' : '');
 	}
 	return ok;
+}
+
+// e5-linux's /usr/libexec/e5-sms: the text in a file, not on a command line
+const SMS_TOOL = '/usr/libexec/e5-sms';
+
+function sms_send(number, text, card) {
+	number = `${number ?? ''}`;
+	text = `${text ?? ''}`;
+	if (!stat(SMS_TOOL))
+		return { ok: false, error: 'sending is not available (no e5-sms)' };
+	if (!match(number, /^\+?[0-9 -]{3,24}$/))
+		return { ok: false, error: 'bad number' };
+	if (text == '' || length(text) > 4000)
+		return { ok: false, error: text == '' ? 'no text' : 'text too long' };
+	system(`mkdir -p ${RUN}`);
+	let c = clock(true);
+	let f = `${RUN}/sms-send.${c[0]}${c[1]}`;
+	writefile(f, text);
+	// (card: the other one than the card in use is switched to first)
+	let cs = (card === 0 || card === 1 || card === '0' || card === '1') ? ` ${card}` : '';
+	let r = sh_json(`${SMS_TOOL} send '${replace(number, /[^+0-9]/g, '')}' '${f}'${cs} 2>/dev/null`);
+	system(`rm -f ${f}`);
+	return r ?? { ok: false, error: 'e5-sms failed' };
 }
 
 /* ---------- traffic ---------- */
@@ -1244,6 +1270,11 @@ global.handle_request = function(env) {
 			return reply_json(200, { ok: system('e5-sms-notify read >/dev/null 2>&1 || : > ' + SMS_UNREAD) == 0 });
 		if (post && path == '/sms-delete')
 			return reply_json(200, { ok: sms_delete(read_body(env).id ?? -1) });
+		if (post && path == '/sms-send') {
+			let b = read_body(env);
+			let r = sms_send(b.number, b.text, b.card);
+			return reply_json(r.ok ? 200 : 400, r);
+		}
 		if (!post && path == '/settings')
 			return reply_json(200, { categories: map(settings(), (c) => ({ id: c.id, label: c.label, view: c.view, plugin: c.plugin })) });
 		let sm = match(path, /^\/settings\/([a-z0-9:_-]+)$/);

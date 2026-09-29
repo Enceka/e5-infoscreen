@@ -33,6 +33,7 @@
 | `GET /sms` | `{ messages: [ { id, number, text, time, state, type, unread } ] }`，新的在前；`time` 为 ISO 8601 |
 | `POST /sms-read` | 全部标为已读（清空未读列表） |
 | `POST /sms-delete` | `{ id }`，从 SIM 卡/模组删除该短信 |
+| `POST /sms-send` | `{ number, text, card }`，发一条短信（e5-linux 的 `/usr/libexec/e5-sms`，经 ModemManager）；成功 `{ ok: true, id, sim }`，失败 400 `{ ok: false, error }`。`card`（可选）0 或 1：用这张 SIM 卡发；不是当前在用的卡时先切换过去（`e5-sim`，数据连接随之切换，发送前等它注册上网络，最多 2 分钟）；不给则用当前的卡。内容最多 4000 字节（约 1300 个汉字），由模组分条发送。 |
 | `GET /qr` | 热点的连接二维码，`image/svg+xml` |
 | `GET /wifi-key` | `{ key }`，热点密码 |
 | `POST /wifi` | `{ on: true\|false }`，开关热点 |
@@ -144,6 +145,7 @@ manifest 的 `id`。复制目录即安装，删除目录即卸载，不需要重
 | `e5.id`、`e5.lang`、`e5.version` | 插件 id、`zh`/`en`、接口版本 |
 | `e5.api(路径, { body, method })` | 对 `/api/plugins/<id><路径>` 的 `fetch`；带 `body` 时以 JSON 发 POST；成功时得到回复（JSON 或文本），非 2xx 时失败，错误带 `.status` 和 `.data` |
 | `e5.core(路径, opts)` | 同上，用于核心接口 `/api/<路径>`（第 2 节） |
+| `e5.sms.list()`、`e5.sms.send(号码, 内容, 卡)` | 短信列表（`GET /sms`）；发一条短信（`POST /sms-send`，卡可选），失败时带错误信息 |
 | `e5.onKey(fn)` | 每次按键调用 `fn({ kind, key, code, repeat })`；返回 `true` 表示已处理 |
 | `e5.onBack(fn)` | `onKey` 没有处理返回键时调用 `fn()`；返回 `true` 表示留在插件里，其他情况关闭插件 |
 | `e5.onLang(fn)` | 屏幕语言改变时调用 `fn(lang)` |
