@@ -456,13 +456,34 @@ function trial_image() {
 	return match(ctx.read_trim('/proc/cmdline') ?? '', /(^| )e5\.openwrt=/) != null;
 }
 
+// the screen's own online update (/usr/libexec/e5-infoscreen/update): what the last check found,
+// and whether an update or a rollback is running
+const UPD = '/usr/libexec/e5-infoscreen/update';
+const UPD_RUN = '/tmp/run/e5-infoscreen';
+function update_state() {
+	let cur = ctx.read_trim('/usr/share/e5-infoscreen/VERSION') ?? '?';
+	let check = ctx.read_trim(`${UPD_RUN}/update-check.txt`);
+	let latest = null;
+	try { latest = json(ctx.read_trim(`${UPD_RUN}/latest.json`) ?? 'null'); } catch (e) {}
+	let busy = ctx.run(`pgrep -f "${UPD} (apply|rollback)" >/dev/null 2>&1`) == 0;
+	let note;
+	if (busy) note = L('正在更新，完成后屏幕会重新载入', 'Updating; the screen reloads when it is done');
+	else if (check == null) note = L('从 GitHub 获取最新的信息屏版本', 'Asks GitHub for the latest info screen');
+	else if (match(check, /^newer /)) note = L(`有新版本 ${substr(check, 6)}`, `${substr(check, 6)} is out`);
+	else if (match(check, /^current /)) note = L('已是最新版本', 'Up to date');
+	else note = L(`检查失败：${replace(check, /^error: /, '')}`, `The check failed: ${replace(check, /^error: /, '')}`);
+	return { cur, latest, busy, note, newer: !busy && check != null && match(check, /^newer /) != null,
+	         backup: ctx.run('[ -f /etc/e5-infoscreen/update-backup.tar.gz ]') == 0 };
+}
+
 const system_cat = {
 	id: 'system', label: L('系统', 'System'),
 	items: function() {
 		let sec = system_section();
 		let zone = sec ? ctx.uci().get('system', sec, 'zonename') : null;
 		let next = next_boot();
-		return [
+		let u = update_state();
+		return filter([
 			{ id: 'timezone', type: 'choice', label: L('时区', 'Time zone'), value: zone ?? 'UTC',
 			  options: map(ZONES, (z) => ({ value: z[0], label: z[2] })),
 			  note: L('屏幕会重新载入', 'The screen reloads') },
@@ -470,6 +491,14 @@ const system_cat = {
 			  value: ctx.uci().get('e5-infoscreen', 'main', 'clock_seconds') == '1' },
 			{ id: 'version', type: 'info', label: L('镜像版本', 'Image'), value: ctx.read_trim('/etc/e5/image-version') ?? '--' },
 			{ id: 'built', type: 'info', label: L('构建时间', 'Built'), value: build_time() ?? '--' },
+			{ id: 'screen_version', type: 'info', label: L('信息屏版本', 'Info screen'), value: u.cur },
+			{ id: 'update_check', type: 'action', label: L('检查更新', 'Check for an update'), note: u.note },
+			u.newer && u.latest ? { id: 'update_apply', type: 'action', confirm: true,
+			  label: L(`更新到 ${u.latest.version}`, `Update to ${u.latest.version}`),
+			  note: u.latest.notes ?? L('只更新信息屏，设置和已装应用保留', 'The screen only; settings and apps stay') } : null,
+			u.backup && !u.busy ? { id: 'update_rollback', type: 'action', confirm: true,
+			  label: L('回退信息屏', 'Roll the screen back'),
+			  note: L('回到上一次更新之前的版本', 'Back to the version before the last update') } : null,
 			{ id: 'traffic_clear', type: 'action', label: L('清空流量记录', 'Clear traffic records'), confirm: true,
 			  note: L('今日、本月和每日的统计都从零开始', 'Today, this month and the days start from zero') },
 			{ id: 'next_boot', type: 'info', label: L('下次重启进入', 'Next reboot boots'),
@@ -488,7 +517,7 @@ const system_cat = {
 			  note: L('插着 USB 时可能会进入充电模式', 'With USB plugged in it may start in charging mode') },
 			{ id: 'android_once', type: 'action', label: L('下次启动 Android', 'Boot Android once'), confirm: true,
 			  note: L('重启进 Android 一次', 'One boot of Android') }
-		];
+		], (i) => i != null);
 	},
 	set: function(id, value) {
 		if (id == 'timezone') {
@@ -520,6 +549,15 @@ const system_cat = {
 			if (value != 'linux' && value != 'android') return 'linux or android';
 			if (trial_image()) return 'a trial image is never the default boot';
 			return ctx.run(`e5-next-boot ${value} >/dev/null 2>&1`) == 0 ? null : 'e5-next-boot failed';
+		}
+		if (id == 'update_check') {
+			ctx.run(`mkdir -p ${UPD_RUN}; ${UPD} fetch > ${UPD_RUN}/update-check.txt 2>&1`);
+			return null;
+		}
+		if (id == 'update_apply' || id == 'update_rollback') {
+			let what = (id == 'update_apply') ? 'apply' : 'rollback';
+			ctx.run(`(${UPD} ${what} > ${UPD_RUN}/update.log 2>&1; rm -f ${UPD_RUN}/update-check.txt) >/dev/null 2>&1 &`);
+			return null;
 		}
 		if (id == 'reboot') { ctx.run('(sleep 2; reboot) >/dev/null 2>&1 &'); return null; }
 		if (id == 'poweroff') { ctx.run('(sleep 2; poweroff) >/dev/null 2>&1 &'); return null; }

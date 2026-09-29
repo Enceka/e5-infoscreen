@@ -55,6 +55,8 @@
 | `GET /devices` | `{ devices: [ { mac, ip, name, via, online, signal, blocked } ] }` |
 | `POST /devices` | `{ mac, action: "block"\|"unblock"\|"kick" }`，返回 `{ ok, error, devices }` |
 | `GET /plugins` | `{ api_version, plugins: [ manifest + { has_backend } ] }` |
+| `GET /store` | 应用商店（第 6 节）：`{ available, error, url, fetched, plugins: [ 索引条目 + { installed, builtin } ] }`；`installed` 是设备上的版本（`null` 表示未安装）；`?refresh=1` 重新获取索引 |
+| `POST /store-install` | `{ id }` → `{ ok, error }`：从商店安装或更新这个应用 |
 | `* /plugins/<id>/<路径>` | 插件自己的后端（第 5.4 节） |
 
 `GET /status` 的内容与英文版相同（见 [`API.md`](API.md) 第 2 节的示例）：`modem`、`wan`、
@@ -230,3 +232,27 @@ tar -czf nettest-1.0.tar.gz -C www/plugins nettest     # 或：cd www/plugins &&
 
 `www/plugins/` 下的两个插件就是示例：`calculator`（页面、按键、`onBack`）和
 `nettest`（后端、设置项、`keepAwake`）。
+
+## 6. 应用商店和信息屏自身的在线更新
+
+`GET /status` 里的 `usb` 是 USB 连接的真实状态：`link` 为 `none`（没插线）、`charger`（仅充电）、`host`
+（接了电脑但没被识别，e5-linux 的 `e5-usb-watch` 会在插拔后重新连上）、`enumerated`（电脑已识别）、
+`lease`（电脑已拿到地址）、`online`（电脑正在通过 E5 上网，流量超过 2 KB/s）。
+
+**应用商店**是 [`Enceka/infoscreen-plugins`](https://github.com/Enceka/infoscreen-plugins)：应用放在
+`plugins/<id>/`，CI（`tools/check.py`）检查 manifest、文件、风格和前端不许做的事，含后台的应用会标出来供审阅；
+通过后发布到 GitHub Pages（`index.json` 和每个应用一个包）。设备上 `plugin store` 获取索引
+（`e5-infoscreen.main.store_url`，默认 `https://enceka.github.io/infoscreen-plugins/index.json`），
+`plugin get ID` 下载应用包，按索引核对大小和 SHA-256、核对包里确实是这个应用，再照常安装（5.5 节）。
+屏幕上：高级 → 应用管理 → 应用商店（安装、更新，按第二下确认）。
+
+**信息屏在线更新**不需要新的系统镜像：`/usr/libexec/e5-infoscreen/update` 读取发布说明
+（`e5-infoscreen.main.update_url`，默认是 GitHub 最新发布的 `latest.json`：`{ version, url, sha256, size, notes }`），
+`update apply` 下载更新包（本仓库的 `root/`，由 `tools/make-release.sh` 生成），核对大小、SHA-256 和包里每一个路径
+（只能在 `usr/`、`www/`、`etc/` 下，不能碰 `etc/config` 和 `etc/e5-infoscreen`；不能有 `..`、绝对路径、链接），
+先把要被替换的文件存到 `/etc/e5-infoscreen/update-backup.tar.gz`，再解包并重启信息屏；`update rollback` 恢复备份。
+版本号在 `/usr/share/e5-infoscreen/VERSION`。屏幕上：高级 → 系统 → 检查更新，然后“更新到 x.y.z”。
+需要新软件包或更新系统的版本不能这样装，要更新系统镜像。
+
+发布新版本：提高 `VERSION` 并提交，运行 `tools/make-release.sh "说明" "notes"`，把
+`dist/e5-infoscreen-<版本>.tar.gz` 和 `dist/latest.json` 上传到 GitHub 发布 `v<版本>`，并标为最新。

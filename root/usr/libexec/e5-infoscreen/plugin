@@ -5,6 +5,9 @@
 #   plugin install FILE      a .tar.gz / .tgz / .zip holding one app (docs/API.md 5.5)
 #   plugin remove ID
 #   plugin link              the installed apps into the web root (at every start)
+#   plugin store             the app store's index into $STORE (e5-infoscreen.main.store_url)
+#   plugin get ID            ID from the store: its package, checked against the index's SHA-256
+#                            and size, then installed as above
 #
 # The two that come with the screen live in the image (www/plugins, "builtin");
 # installed ones in /etc/e5-infoscreen/plugins, which an image update keeps
@@ -20,6 +23,8 @@ WWW=/usr/share/e5-infoscreen/www/plugins
 USER_DIR=/etc/e5-infoscreen/plugins
 API_VERSION=1
 MAX_KB=20480
+STORE=/tmp/run/e5-infoscreen/store.json
+STORE_URL=https://enceka.github.io/infoscreen-plugins/index.json
 
 die() { echo "error: $*" >&2; exit 1; }
 valid_id() { echo "$1" | grep -qE '^[a-z0-9][a-z0-9_-]{0,31}$'; }
@@ -86,6 +91,8 @@ do_install() {
 	[ -f "$src/manifest.json" ] || die "no manifest.json"
 	id=$(manifest_get "$src" '@.id')
 	valid_id "$id" || die "the manifest's id is not valid: $id"
+	# (from the store: the app the index said)
+	[ -z "${EXPECT_ID:-}" ] || [ "$id" = "$EXPECT_ID" ] || die "the package holds $id, not $EXPECT_ID"
 	av=$(manifest_get "$src" '@.api_version')
 	case "$av" in ''|*[!0-9]*) die "the manifest has no api_version" ;; esac
 	[ "$av" -le $API_VERSION ] || die "the app needs API $av, the screen has $API_VERSION"
@@ -115,10 +122,46 @@ do_remove() {
 	echo "removed $id"
 }
 
+# (curl when the image has it, else OpenWrt's own wget -- uclient-fetch, which does HTTPS too)
+fetch() {
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL --connect-timeout 10 --max-time "$3" -o "$2" "$1"
+	else
+		timeout "$3" wget -q -T 10 -O "$2" "$1"
+	fi
+}
+
+do_store() {
+	url=$(uci -q get e5-infoscreen.main.store_url); [ -n "$url" ] || url=$STORE_URL
+	mkdir -p "$(dirname "$STORE")"
+	fetch "$url" "$STORE.part" 30 || { rm -f "$STORE.part"; die "cannot fetch $url"; }
+	jsonfilter -i "$STORE.part" -e '@.plugins' >/dev/null 2>&1 || { rm -f "$STORE.part"; die "not a store index"; }
+	mv "$STORE.part" "$STORE"
+	jsonfilter -i "$STORE" -e '@.plugins[*].id' | wc -l | sed 's/$/ apps in the store/'
+}
+
+do_get() {
+	id=${1:?id}
+	valid_id "$id" || die "not a valid id: $id"
+	[ -f "$STORE" ] || do_store >/dev/null || exit 1
+	q() { jsonfilter -i "$STORE" -e "@.plugins[@.id='$id'].$1" 2>/dev/null; }
+	url=$(q url) sum=$(q sha256) size=$(q size)
+	[ -n "$url" ] && [ -n "$sum" ] || die "$id is not in the store"
+	[ -z "$size" ] || [ "$size" -le $((MAX_KB * 1024)) ] || die "the package is too big"
+	f=$(mktemp /tmp/e5-store.XXXXXX) || die "no temporary file"
+	fetch "$url" "$f" 300 || { rm -f "$f"; die "cannot fetch $url"; }
+	if [ "$(sha256sum "$f" | cut -d' ' -f1)" != "$sum" ]; then rm -f "$f"; die "SHA-256 mismatch"; fi
+	( EXPECT_ID=$id do_install "$f" ); rc=$?
+	rm -f "$f"
+	return $rc
+}
+
 case "${1:-}" in
 	list) do_list ;;
+	store) do_store ;;
+	get) do_get "$2" ;;
 	install) do_install "$2" ;;
 	remove) do_remove "$2" ;;
 	link) do_link ;;
-	*) sed -n '2,9p' "$0"; exit 2 ;;
+	*) sed -n '2,12p' "$0"; exit 2 ;;
 esac

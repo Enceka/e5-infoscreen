@@ -403,6 +403,53 @@ function clients() {
 	return list;
 }
 
+// the USB link as it is: the cable (an extcon's USB=1), what it comes from
+// (the charger's usb_type: SDP or CDP a computer's port, DCP a wall charger),
+// whether the host enumerated the gadget (the UDC's state), the host's lease,
+// and its traffic.  link: none | charger | host (a computer's port, the gadget
+// not enumerated) | enumerated | lease | online (the host's traffic through
+// the E5, over 2 KB/s)
+function usb_status() {
+	let cable = false;
+	for (let e in glob('/sys/class/extcon/*/state'))
+		if (match(readfile(e) ?? '', /(^|\n)USB=1/))
+			cable = true;
+	let port = null;
+	for (let p in glob('/sys/class/power_supply/*/usb_type')) {
+		if (read_trim(replace(p, /usb_type$/, 'online')) != '1')
+			continue;
+		let m = match(readfile(p) ?? '', /\[([A-Z_]+)\]/);
+		if (m && m[1] != 'Unknown')
+			port = m[1];
+	}
+	let udc = glob('/sys/class/udc/*')[0];
+	let state = udc ? read_trim(udc + '/state') : null;
+	let ip = null;
+	for (let line in split(readfile('/tmp/dhcp.leases') ?? '', '\n')) {
+		let f = split(line, ' ');
+		if (length(f) >= 3 && lc(f[1]) == USB_HOST_MAC)
+			ip = f[2];
+	}
+	let n = '/sys/class/net/usb0/statistics/';
+	let rx = read_num(n + 'rx_bytes'), tx = read_num(n + 'tx_bytes'), t = now();
+	let prev = state_get('usb'), rx_rate = null, tx_rate = null;
+	if (prev && rx != null && t > prev.t && rx >= prev.rx && tx >= prev.tx) {
+		rx_rate = (rx - prev.rx) / (t - prev.t);
+		tx_rate = (tx - prev.tx) / (t - prev.t);
+	}
+	if (rx != null)
+		state_put('usb', { t, rx, tx });
+	let link = 'none';
+	if (cable) {
+		if (state == 'configured')
+			link = !ip ? 'enumerated' : ((rx_rate ?? 0) + (tx_rate ?? 0) > 2048 ? 'online' : 'lease');
+		else
+			link = (port == 'DCP') ? 'charger' : 'host';
+	}
+	return { cable, port, state, speed: udc ? read_trim(udc + '/current_speed') : null,
+	         ip, rx_rate, tx_rate, link };
+}
+
 function battery() {
 	let b = '/sys/class/power_supply/battery/';
 	let cur = read_num(b + 'current_now'), volt = read_num(b + 'voltage_now');
@@ -1114,6 +1161,7 @@ function status() {
 		wifi: wifi_status(),
 		clients: clients(),
 		battery: battery(),
+		usb: usb_status(),
 		system: system_status(),
 		screen: screen_config(),
 		sms: { unread: sms_unread(), ...sms_config() }
@@ -1259,6 +1307,28 @@ function log_key(k) {
 	return true;
 }
 
+// the app store (plugin store / get): its index, each app with what is installed of it
+const STORE = '/tmp/run/e5-infoscreen/store.json';
+function store(refresh) {
+	let err = null;
+	if (refresh || !stat(STORE)) {
+		let out = sh('/usr/libexec/e5-infoscreen/plugin store 2>&1') ?? '';
+		if (match(out, /^error: /)) err = trim(replace(out, /^error: /, ''));
+	}
+	let idx = null;
+	try { idx = json(readfile(STORE) ?? 'null'); } catch (e) {}
+	let have = {};
+	for (let m in plugin_manifests())
+		have[m.id] = m;
+	let list = [];
+	for (let p in (idx?.plugins ?? [])) {
+		let h = have[p.id];
+		push(list, { ...p, installed: h?.version ?? (h ? '' : null), builtin: h?.builtin ?? false });
+	}
+	return { available: idx != null, error: err, url: cursor().get('e5-infoscreen', 'main', 'store_url'),
+	         fetched: stat(STORE)?.mtime, plugins: list };
+}
+
 global.handle_request = function(env) {
 	let path = env.PATH_INFO;
 	if (path == null) {
@@ -1317,6 +1387,16 @@ global.handle_request = function(env) {
 				return reply_json(400, { ok: false, error: 'bad id' });
 			let out = sh(`/usr/libexec/e5-infoscreen/plugin remove ${id} 2>&1`) ?? '';
 			let ok = match(out, /^removed /) != null;
+			return reply_json(ok ? 200 : 400, { ok, error: ok ? null : trim(out) });
+		}
+		if (!post && path == '/store')
+			return reply_json(200, store(match(env.QUERY_STRING ?? '', /(^|&)refresh=1/) != null));
+		if (post && path == '/store-install') {
+			let id = read_body(env).id ?? '';
+			if (!match(id, /^[a-z0-9][a-z0-9_-]*$/))
+				return reply_json(400, { ok: false, error: 'bad id' });
+			let out = sh(`/usr/libexec/e5-infoscreen/plugin get ${id} 2>&1`) ?? '';
+			let ok = match(out, /installed /) != null;
 			return reply_json(ok ? 200 : 400, { ok, error: ok ? null : trim(out) });
 		}
 		if (!post && path == '/plugins')

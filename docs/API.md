@@ -63,6 +63,8 @@ for version 1 of all three.
 | `GET /devices` | `{ devices: [ { mac, ip, name, via, online, signal, blocked } ] }` |
 | `POST /devices` | `{ mac, action: "block"\|"unblock"\|"kick" }` -> `{ ok, error, devices }` |
 | `GET /plugins` | `{ api_version, plugins: [ manifest + { has_backend } ] }` |
+| `GET /store` | the app store (section 6): `{ available, error, url, fetched, plugins: [ index entry + { installed, builtin } ] }`; `installed` the version on the device (`null`: not installed); `?refresh=1` fetches the index again |
+| `POST /store-install` | `{ id }` -> `{ ok, error }`: the app from the store, installed or updated |
 | `* /plugins/<id>/<path>` | the plugin's backend (section 5.3) |
 
 `GET /status`:
@@ -84,6 +86,8 @@ for version 1 of all three.
   "wifi": { "ssid": "E5-Linux", "enabled": true, "up": true, "channel": "149", "band": "5g", "secured": true },
   "clients": [ { "name": "phone", "ip": "192.168.9.12", "mac": "..", "via": "wifi", "signal": -52 } ],
   "battery": { "capacity": 99, "status": "Charging", "current_ma": 194, "voltage_mv": 4350, "limit": 80, "paused": false, "online": true },
+  "usb": { "cable": true, "port": "CDP", "state": "configured", "speed": "high-speed", "ip": "192.168.9.2",
+           "rx_rate": 812.0, "tx_rate": 20480.5, "link": "online" },
   "system": { "uptime": 5321, "load": 0.42, "mem_total": 1538670592, "mem_available": 794218496,
               "disk_total": 1020702720, "disk_used": 345812992, "lan_ip": "192.168.9.1" },
   "screen": { "idle": 60, "brightness": 120, "lang": "zh" },
@@ -101,6 +105,14 @@ each time; the data interface follows it (`sipa_eth0`, `sipa_eth8`).  `modem.qos
 subscribed rate: the aggregate maximum bit rate the network grants the data
 context (cid 1), in kbit/s, with its QCI (LTE, `AT+CGEQOSRDP=1`) or 5QI (`nr`,
 `AT+C5GQOSRDP=1`); cached 60 s, `null` without a bearer.
+
+`usb` is the USB link as it is: `cable` a cable in (an extcon's `USB=1`), `port` what it
+comes from as the charger sees it (`SDP`/`CDP` a computer's port, `DCP` a wall charger),
+`state` the gadget's UDC state (`configured`: enumerated), `ip` the host's lease, the
+rates the host's traffic on `usb0` (the E5's view: `tx` is what the host downloads).
+`link`: `none` (no cable), `charger` (charging only), `host` (a computer, the gadget
+not enumerated -- e5-linux's `e5-usb-watch` connects it again after a replug),
+`enumerated`, `lease` (the host has an address), `online` (its traffic over 2 KB/s).
 
 ## 3. Settings items
 
@@ -281,3 +293,29 @@ image's own); `POST /plugins-remove { id }` uninstalls.
 
 The two plugins in `www/plugins/` are the examples: `calculator` (a page, keys,
 `onBack`) and `nettest` (a backend, settings, `keepAwake`).
+
+## 6. The app store and the screen's own update
+
+**The store** is [`Enceka/infoscreen-plugins`](https://github.com/Enceka/infoscreen-plugins): apps
+in `plugins/<id>/`, checked by its CI (`tools/check.py`: the manifest, the files, the style, what
+a frontend must not do; a backend is flagged for review) and published on GitHub Pages as
+`index.json` plus one package per app.  On the device `plugin store` fetches the index
+(`e5-infoscreen.main.store_url`, default `https://enceka.github.io/infoscreen-plugins/index.json`)
+and `plugin get ID` downloads the package, checks its size and SHA-256 against the index and
+that it holds the app the index said, then installs it as any package (5.5).  On the screen:
+高级 -> 应用管理 -> 应用商店 (install, update, a second press confirms).
+
+**The screen's own update** needs no new system image: `/usr/libexec/e5-infoscreen/update`
+reads a release description (`e5-infoscreen.main.update_url`, default the latest GitHub release's
+`latest.json`: `{ version, url, sha256, size, notes }`), and `update apply` downloads the package
+(this repository's `root/`, made by `tools/make-release.sh`), checks its size, SHA-256 and every
+path in it (under `usr/`, `www/` or `etc/`, never `etc/config` or `etc/e5-infoscreen`; no `..`,
+no absolute path, no link), saves the files it replaces to
+`/etc/e5-infoscreen/update-backup.tar.gz`, unpacks it and restarts the screen; `update rollback`
+puts the saved files back.  The version is `/usr/share/e5-infoscreen/VERSION`.  On the screen:
+高级 -> 系统 -> 检查更新, then 更新到 x.y.z.  A release that needs packages or a newer system than
+the image has cannot be installed this way: that takes an image update.
+
+To publish a version: raise `VERSION`, commit, `tools/make-release.sh "说明" "notes"`, and upload
+`dist/e5-infoscreen-<version>.tar.gz` and `dist/latest.json` to a GitHub release `v<version>`
+marked latest.

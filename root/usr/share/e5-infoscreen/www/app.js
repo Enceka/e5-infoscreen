@@ -16,7 +16,7 @@ const I18N = {
 		no_sms: '没有短信', unknown_sender: '未知号码', new_sms: '新短信',
 		advanced: '高级', adv_info: '高级信息', model: '型号',
 		traffic: '流量', today: '今日', this_month: '本月', last_days: '最近 7 天', counting_since: '开始统计于',
-		settings: '高级', apps: '应用', no_apps: '没有安装应用', press_again: '再按一次确认', unlocked: '已解锁', pic_close: '按任意键或点一下关闭', donate_note: '关闭后不再弹出，以后如有意愿，可以在“高级 → 关于 → 赞赏”里赞赏',
+		settings: '高级', apps: '应用', no_apps: '没有安装应用', press_again: '再按一次确认', unlocked: '已解锁', pic_close: '按任意键或点一下关闭', app_store: '应用商店', store_install: '安装', store_update: '更新到', store_have: '已安装', store_backend: '含后台（以 root 运行）', store_refresh: '刷新', store_empty: '商店里还没有应用', store_fail: '无法获取应用商店', store_installing: '正在安装…', store_note: '应用来自 github.com/Enceka/infoscreen-plugins，经检查后发布；含后台的应用以 root 运行，只装你信任的', usb_none: '未连接', usb_charger: '仅充电（充电器）', usb_host: '已接电脑，未识别', usb_enumerated: '已连接电脑', usb_lease: '电脑已获取地址', usb_online: '电脑正通过 E5 上网', donate_note: '关闭后不再弹出，以后如有意愿，可以在“高级 → 关于 → 赞赏”里赞赏',
 		apply: '应用', clear: '全部取消', save: '保存', saved: '已保存', failed: '失败',
 		online: '在线', offline: '离线', blocked: '已禁止上网', block: '禁止上网', unblock: '允许上网',
 		kick: '踢下 Wi-Fi', kicked: '已踢下线', mac: 'MAC', via: '连接', no_devices: '没有设备',
@@ -49,7 +49,7 @@ const I18N = {
 		no_sms: 'No messages', unknown_sender: 'Unknown', new_sms: 'New message',
 		advanced: 'Advanced', adv_info: 'Details', model: 'Model',
 		traffic: 'Traffic', today: 'Today', this_month: 'This month', last_days: 'Last 7 days', counting_since: 'Counting since',
-		settings: 'Settings', apps: 'Apps', no_apps: 'No apps installed', press_again: 'Press again', unlocked: 'Unlocked', pic_close: 'Any key or a tap closes this', donate_note: 'This is not shown again; it stays under Settings -> About -> Donate',
+		settings: 'Settings', apps: 'Apps', no_apps: 'No apps installed', press_again: 'Press again', unlocked: 'Unlocked', pic_close: 'Any key or a tap closes this', app_store: 'App store', store_install: 'Install', store_update: 'Update to', store_have: 'Installed', store_backend: 'with a backend (runs as root)', store_refresh: 'Refresh', store_empty: 'No apps in the store yet', store_fail: 'Cannot reach the app store', store_installing: 'Installing…', store_note: 'Apps from github.com/Enceka/infoscreen-plugins, checked before they are published; an app with a backend runs as root: install what you trust', usb_none: 'Not connected', usb_charger: 'Charging only (a charger)', usb_host: 'A computer, not enumerated', usb_enumerated: 'Connected to a computer', usb_lease: 'The computer has an address', usb_online: 'The computer is online through the E5', donate_note: 'This is not shown again; it stays under Settings -> About -> Donate',
 		apply: 'Apply', clear: 'Clear all', save: 'Save', saved: 'Saved', failed: 'Failed',
 		online: 'Online', offline: 'Offline', blocked: 'Blocked', block: 'Block internet', unblock: 'Allow internet',
 		kick: 'Kick off Wi-Fi', kicked: 'Kicked', mac: 'MAC', via: 'Via', no_devices: 'No devices',
@@ -326,6 +326,16 @@ async function renderHotspot(st) {
 	).join('') : `<div class="sub">${esc(t('none'))}</div>`);
 }
 
+// the USB row: what the link is, the host's address, its traffic while it uses the E5
+function usbText(u) {
+	if (!u) return '--';
+	let s = t('usb_' + u.link);
+	if ((u.link == 'lease' || u.link == 'online') && u.ip) s += ` · ${u.ip}`;
+	// (the host's down is what the E5 sends on usb0)
+	if (u.link == 'online') s += ` · ↓${fmtRate(u.tx_rate ?? 0).join(' ')} ↑${fmtRate(u.rx_rate ?? 0).join(' ')}`;
+	return s;
+}
+
 function renderDevice(st) {
 	setText('dv-bat', batteryText(st.battery));
 	setText('dv-up', fmtDuration(st.system.uptime));
@@ -334,6 +344,7 @@ function renderDevice(st) {
 	const used = st.system.mem_total - st.system.mem_available;
 	const [u, uu] = fmtBytes(used), [tt, tu] = fmtBytes(st.system.mem_total);
 	setText('dv-mem', `${u} ${uu} / ${tt} ${tu}`);
+	setText('dv-usb', usbText(st.usb));
 	setText('dv-lan', st.system.lan_ip);
 	setText('dv-v4', st.wan.ipv4 ?? '--');
 	setText('dv-v6', st.wan.ipv6_prefix ?? st.wan.ipv6 ?? '--');
@@ -1007,7 +1018,7 @@ function stRow(key, label, value, opts = {}) {
 function stRender() {
 	const v = stTop();
 	if (!v) return;
-	const path = st.map((x) => x.view == 'menu' ? t('settings') : x.view == 'appcats' ? t('app_settings') : x.view == 'atres' ? x.cmd : x.cat ? lbl(x.cat.label) : x.item ? lbl(x.item.label) : x.dev ? (x.dev.name ?? x.dev.ip ?? x.dev.mac) : x.view == 'btdev' ? (x.name ?? x.mac) : x.view == 'app' ? (lbl(x.app.name) || x.app.id) : '').join(' › ');
+	const path = st.map((x) => x.view == 'menu' ? t('settings') : x.view == 'store' ? t('app_store') : x.view == 'appcats' ? t('app_settings') : x.view == 'atres' ? x.cmd : x.cat ? lbl(x.cat.label) : x.item ? lbl(x.item.label) : x.dev ? (x.dev.name ?? x.dev.ip ?? x.dev.mac) : x.view == 'btdev' ? (x.name ?? x.mac) : x.view == 'app' ? (lbl(x.app.name) || x.app.id) : '').join(' › ');
 	setText('st-path', path);
 	let html = '';
 	if (v.view == 'menu') {
@@ -1052,11 +1063,22 @@ function stRender() {
 				d.blocked ? t('blocked') : d.online ? `${t('online')} · ${t(d.via ?? 'wifi')}` : t('offline'),
 				{ on: d.online && !d.blocked, chev: true })).join('') : `<div class="sub">${esc(t('no_devices'))}</div>`;
 	} else if (v.view == 'apps') {
-		html = v.list == null ? `<div class="sub">${esc(t('loading'))}</div>` :
+		html = stRow('store:', t('app_store'), '', { chev: true }) + (v.list == null ? `<div class="sub">${esc(t('loading'))}</div>` :
 			(v.list.length ? v.list.map((m) => stRow('apm:' + m.id, lbl(m.name) || m.id,
 				(m.version ? 'v' + m.version + ' · ' : '') + (m.builtin ? t('app_builtin') : t('app_user')), { chev: true })).join('')
 				: `<div class="sub">${esc(t('no_apps'))}</div>`) +
-			`<div class="stnote">${esc(t('app_install_note'))}</div>`;
+			`<div class="stnote">${esc(t('app_install_note'))}</div>`);
+	} else if (v.view == 'store') {
+		const s = v.store;
+		if (!s) html = `<div class="sub">${esc(t('loading'))}</div>`;
+		else if (!s.available) html = `<div class="sub">${esc(t('store_fail'))}${s.error ? ': ' + esc(s.error) : ''}</div>`;
+		else html = s.plugins.length ? s.plugins.map((p) => {
+			const have = p.installed != null, same = have && p.installed == p.version;
+			const what = same ? `${t('store_have')} v${p.version}` : have ? `${t('store_update')} v${p.version}` : `${t('store_install')} v${p.version}`;
+			return stRow('stp:' + p.id, lbl(p.name) || p.id, v.busy == p.id ? t('store_installing') : what,
+				{ on: same, note: [lbl(p.description), p.backend ? t('store_backend') : ''].filter(Boolean).join(' · ') });
+		}).join('') : `<div class="sub">${esc(t('store_empty'))}</div>`;
+		html += stRow('storerf:', t('store_refresh'), '') + `<div class="stnote">${esc(t('store_note'))}</div>`;
 	} else if (v.view == 'app') {
 		const m = v.app;
 		html = stRow('info:appid', 'ID', m.id, { info: true }) +
@@ -1251,6 +1273,30 @@ async function stClick(key, el) {
 			await stPost(v.parent, { id: it.id, value: v.draft });
 			st.pop(); stRender();
 		}
+		return;
+	}
+	if (k == 'store' || k == 'storerf') {
+		const nv = k == 'store' ? { view: 'store', store: null, parent: v } : v;
+		if (k == 'store') st.push(nv);
+		nv.store = null; stRender();
+		nv.store = await fetch('/api/store' + (k == 'storerf' ? '?refresh=1' : ''), { cache: 'no-store' })
+			.then((r) => r.json()).catch(() => ({ available: false }));
+		if (stTop() === nv) stRender();
+		return;
+	}
+	if (k == 'stp') {
+		const p = v.store?.plugins.find((x) => x.id == arg);
+		if (!p || v.busy || p.installed == p.version) return;
+		if (!stConfirm(key, el)) return;
+		v.busy = p.id; stRender();
+		const r = await post('store-install', { id: p.id });
+		v.busy = null;
+		toast(r?.ok ? t('saved') : `${t('failed')}${r?.error ? ': ' + r.error : ''}`);
+		v.store = await fetch('/api/store', { cache: 'no-store' }).then((r) => r.json()).catch(() => v.store);
+		// (the apps list below it, and the Apps page, see the new one)
+		if (v.parent?.view == 'apps') v.parent.list = (await fetch('/api/plugins', { cache: 'no-store' }).then((r) => r.json()).catch(() => null))?.plugins ?? v.parent.list;
+		loadApps();
+		if (stTop() === v) stRender();
 		return;
 	}
 	if (k == 'apm') {
