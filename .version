@@ -1,0 +1,8 @@
+# e5-infoscreen 的发布：改这个文件并 push，release workflow 就按下面的字段发布。
+# (.github/workflows/release.yml -> tools/make-release.sh)
+#   version    版本号，点分，须比设备上已有的新
+#   notes_zh   发布说明（中文）
+#   notes_en   release notes (English)；留空则用中文
+version=1.1.0
+notes_zh=信息屏的第一个在线更新版本：应用商店、屏幕自己的在线更新（高级 -> 系统），以及“设备”页按实际情况显示 USB 链路。
+notes_en=First online-update release: the app store, the screen's own online update (Advanced -> System), and the Device page's USB link as it is.

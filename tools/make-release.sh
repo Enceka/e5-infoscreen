@@ -1,15 +1,23 @@
 #!/bin/sh
 # A release for the screen's online update (/usr/libexec/e5-infoscreen/update, docs/API.md 6):
 #
-#   tools/make-release.sh "说明" "notes"   -> dist/e5-infoscreen-<VERSION>.tar.gz and dist/latest.json
+#   tools/make-release.sh ["说明" "notes"]   -> dist/e5-infoscreen-<VERSION>.tar.gz and dist/latest.json
 #
-# The version is root/usr/share/e5-infoscreen/VERSION (raise it first).  Upload both files to a GitHub
-# release tagged v<VERSION> of Enceka/e5-infoscreen, marked latest: the devices read
-# releases/latest/download/latest.json.  The package is root/ as it is in git, owned by root.
+# The version and the release notes come from .version at the repository root
+# (its `version`, `notes_zh` and `notes_en` fields); the arguments override the
+# notes.  Raising .version is what the release workflow watches
+# (.github/workflows/release.yml), which builds this and opens the GitHub
+# release v<VERSION> of Enceka/e5-infoscreen, marked latest -- the devices read
+# releases/latest/download/latest.json.  Without .version the version is
+# root/usr/share/e5-infoscreen/VERSION, raised by hand first.  Either way the
+# package is root/ as it is in git, owned by root.
 set -eu
 cd "$(dirname "$0")/.."
-V=$(cat root/usr/share/e5-infoscreen/VERSION)
-[ -z "$(git status --porcelain root)" ] || { echo "root/ has uncommitted changes" >&2; exit 1; }
+field() { [ -f .version ] && sed -n "s/^$1=//p" .version | head -1; }
+V=$(field version); V=${V:-$(cat root/usr/share/e5-infoscreen/VERSION)}
+printf '%s\n' "$V" > root/usr/share/e5-infoscreen/VERSION
+[ -z "$(git status --porcelain root | grep -v 'root/usr/share/e5-infoscreen/VERSION')" ] ||
+    { echo "root/ has uncommitted changes" >&2; exit 1; }
 mkdir -p dist
 P=dist/e5-infoscreen-$V.tar.gz
 python3 - "$P" <<'PY'
@@ -36,7 +44,9 @@ with tarfile.open(out, 'w:gz', format=tarfile.GNU_FORMAT) as t:
 PY
 SUM=$( (shasum -a 256 "$P" 2>/dev/null || sha256sum "$P") | cut -d' ' -f1)
 SIZE=$(wc -c < "$P" | tr -d ' ')
-python3 - "$V" "$SUM" "$SIZE" "${1:-}" "${2:-}" > dist/latest.json <<'PY'
+ZH=${1:-$(field notes_zh)}
+EN=${2:-$(field notes_en)}
+python3 - "$V" "$SUM" "$SIZE" "$ZH" "$EN" > dist/latest.json <<'PY'
 import json, sys
 v, s, n, zh, en = sys.argv[1:6]
 print(json.dumps({'version': v,

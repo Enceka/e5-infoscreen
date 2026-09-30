@@ -1,0 +1,51 @@
+name: Release
+
+# Bump .version (its `version` field) and push: this builds the package
+# (tools/make-release.sh) and opens the GitHub release v<version> with
+# e5-infoscreen-<version>.tar.gz and latest.json, marked latest -- which is what
+# the devices read (releases/latest/download/latest.json,
+# /usr/libexec/e5-infoscreen/update).
+on:
+  push:
+    branches: [ main ]
+    paths: [ '.version' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read .version
+        id: version
+        run: |
+          V=$(sed -n 's/^version=//p' .version | head -1)
+          [ -n "$V" ] || { echo "::error::.version has no version= line"; exit 1; }
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Build the release
+        run: sh tools/make-release.sh
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V='${{ steps.version.outputs.version }}'
+          if gh release view "v$V" >/dev/null 2>&1; then
+            echo "::error::release v$V already exists -- raise version= in .version"
+            exit 1
+          fi
+          NOTES=$(mktemp)
+          {
+            sed -n 's/^notes_zh=//p' .version | head -1
+            echo
+            sed -n 's/^notes_en=//p' .version | head -1
+          } > "$NOTES"
+          gh release create "v$V" --title "v$V" --notes-file "$NOTES" \
+            "dist/e5-infoscreen-$V.tar.gz" dist/latest.json
