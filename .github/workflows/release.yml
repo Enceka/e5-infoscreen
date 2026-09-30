@@ -37,15 +37,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           V='${{ steps.version.outputs.version }}'
-          if gh release view "v$V" >/dev/null 2>&1; then
-            echo "::error::release v$V already exists -- raise version= in .version"
-            exit 1
-          fi
           NOTES=$(mktemp)
           {
             sed -n 's/^notes_zh=//p' .version | head -1
             echo
             sed -n 's/^notes_en=//p' .version | head -1
           } > "$NOTES"
-          gh release create "v$V" --title "v$V" --notes-file "$NOTES" \
-            "dist/e5-infoscreen-$V.tar.gz" dist/latest.json
+          if gh release view "v$V" >/dev/null 2>&1; then
+            # Already released: keep the release and replace its files, so a
+            # re-run -- or a fix to the package under the same version -- is
+            # idempotent.  The devices take a release only when it is *newer*
+            # than the version they run, so a changed build under the same
+            # version does not reach them: raise version= in .version for that.
+            echo "v$V already exists: replacing its files and notes (raise version= in .version for the devices to take it)"
+            gh release upload "v$V" "dist/e5-infoscreen-$V.tar.gz" dist/latest.json --clobber
+            gh release edit "v$V" --title "v$V" --notes-file "$NOTES"
+          else
+            gh release create "v$V" --title "v$V" --notes-file "$NOTES" \
+              "dist/e5-infoscreen-$V.tar.gz" dist/latest.json
+          fi
