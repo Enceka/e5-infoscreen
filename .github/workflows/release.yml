@@ -44,15 +44,16 @@ jobs:
             sed -n 's/^notes_en=//p' .version | head -1
           } > "$NOTES"
           if gh release view "v$V" >/dev/null 2>&1; then
-            # Already released: keep the release and replace its files, so a
-            # re-run -- or a fix to the package under the same version -- is
-            # idempotent.  The devices take a release only when it is *newer*
-            # than the version they run, so a changed build under the same
-            # version does not reach them: raise version= in .version for that.
-            echo "v$V already exists: replacing its files and notes (raise version= in .version for the devices to take it)"
+            # Already there: replace its files and make sure it is *published*
+            # and latest -- a draft (made by hand, or left by an interrupted
+            # run) is invisible to everyone and to releases/latest, so the
+            # devices never see it.  A re-run is idempotent.  The devices take a
+            # release only when it is newer than what they run, so a changed
+            # build under the same version needs version= raised in .version.
+            echo "v$V already exists: replacing its files and publishing it (raise version= in .version for the devices to take it)"
             gh release upload "v$V" "dist/e5-infoscreen-$V.tar.gz" dist/latest.json --clobber
-            gh release edit "v$V" --title "v$V" --notes-file "$NOTES"
+            gh release edit "v$V" --title "v$V" --notes-file "$NOTES" --draft=false --latest
           else
-            gh release create "v$V" --title "v$V" --notes-file "$NOTES" \
+            gh release create "v$V" --title "v$V" --notes-file "$NOTES" --latest \
               "dist/e5-infoscreen-$V.tar.gz" dist/latest.json
           fi
