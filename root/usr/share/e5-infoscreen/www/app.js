@@ -20,10 +20,13 @@ const I18N = {
 		apply: '应用', clear: '全部取消', save: '保存', saved: '已保存', failed: '失败',
 		online: '在线', offline: '离线', blocked: '已禁止上网', block: '禁止上网', unblock: '允许上网',
 		kick: '踢下 Wi-Fi', kicked: '已踢下线', mac: 'MAC', via: '连接', no_devices: '没有设备',
-		loading: '读取中…', app_settings: '应用设置', current_voltage: '电流 / 电压',
+		loading: '读取中…', app_settings: '应用设置', app_config: '设置', current_voltage: '电流 / 电压',
 		charge_paused: '已暂停充电', limit: '上限', wan: '外网', lan: '内网',
 		at_running: '执行中…', at_again: '再执行一次', at_note: '任意指令可通过 SSH 的 e5-at 或插件的 /api/at 发送', at_risky: '该指令可能让基带直到重启前不再响应 AT 或识别不到 SIM 卡', system: '系统', image: '镜像版本', kernel: '内核',
 		storage: '存储', temperature: '温度', baseband: '基带', modes: '网络模式',
+		temperatures: '温度详情', cpu_temp: 'CPU', gpu_temp: 'GPU', modem_temp: '基带',
+		board_temp: '主板', battery_temp: '电池', pa_temp: '射频功放', estimated: '估算', unverified: '待核实',
+		soc_temp: 'SoC', lte_temp: '4G 基带', nr_temp: '5G 基带', mm_temp: '多媒体', show_more: '查看更多', show_less: '收起',
 		locks: '锁定', lte_bands: 'LTE 频段', nr_bands: 'NR 频段', cell_lock: '锁小区',
 		not_locked: '未锁定', slot: '卡槽', operator: '运营商', registration: '注册',
 		number: '本机号码', show_ids: '显示识别码', hide_ids: '隐藏识别码',
@@ -53,10 +56,13 @@ const I18N = {
 		apply: 'Apply', clear: 'Clear all', save: 'Save', saved: 'Saved', failed: 'Failed',
 		online: 'Online', offline: 'Offline', blocked: 'Blocked', block: 'Block internet', unblock: 'Allow internet',
 		kick: 'Kick off Wi-Fi', kicked: 'Kicked', mac: 'MAC', via: 'Via', no_devices: 'No devices',
-		loading: 'Loading…', app_settings: 'App settings', current_voltage: 'Current / voltage',
+		loading: 'Loading…', app_settings: 'App settings', app_config: 'Settings', current_voltage: 'Current / voltage',
 		charge_paused: 'Charging paused', limit: 'limit', wan: 'WAN', lan: 'LAN',
 		at_running: 'Running…', at_again: 'Run again', at_note: 'Any command: e5-at over SSH, or /api/at from a plugin', at_risky: 'This command may leave the baseband unresponsive to AT or unaware of the SIM until a reboot', system: 'System', image: 'Image', kernel: 'Kernel',
 		storage: 'Storage', temperature: 'Temperature', baseband: 'Baseband', modes: 'Modes',
+		temperatures: 'Temperatures', cpu_temp: 'CPU', gpu_temp: 'GPU', modem_temp: 'Modem',
+		board_temp: 'Board', battery_temp: 'Battery', pa_temp: 'RF PA', estimated: 'Estimated', unverified: 'Unverified',
+		soc_temp: 'SoC', lte_temp: '4G modem', nr_temp: '5G modem', mm_temp: 'Media', show_more: 'Show more', show_less: 'Show less',
 		locks: 'Locks', lte_bands: 'LTE bands', nr_bands: 'NR bands', cell_lock: 'Cell lock',
 		not_locked: 'Not locked', slot: 'Slot', operator: 'Operator', registration: 'Registration',
 		number: 'Number', show_ids: 'Show identifiers', hide_ids: 'Hide identifiers',
@@ -81,6 +87,8 @@ const I18N = {
 const POLL_AWAKE = 2000;
 const POLL_BLANK = 5000;     // (still quick to notice a new SMS)
 const KEY_LOG_MAX = 200;
+const TEMP_FIELDS = ['cpu', 'gpu', 'soc', 'lte', 'nr', 'mm', 'board', 'pa', 'battery'];
+let extraTemps = false;
 
 let lang = 'zh';
 let page = 0;
@@ -271,6 +279,18 @@ function renderOverview(st) {
 	const sy = st.system;
 	usage('ov-mem', sy.mem_total == null ? null : sy.mem_total - sy.mem_available, sy.mem_total);
 	usage('ov-disk', sy.disk_used, sy.disk_total);
+	setHTML('ov-temps', temperatureSummary(sy.temperatures));
+}
+
+function temperatureSummary(values) {
+	const temps = values ?? {};
+	return TEMP_FIELDS.map((name) =>
+		`<div class="temperature"><span class="label">${esc(t(name + '_temp'))}</span>` +
+		`<span class="value">${fmtTemp(temps[name])}</span></div>`).join('');
+}
+
+function fmtTemp(value) {
+	return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} °C` : '--';
 }
 
 // "used / total · n%" and a bar: green, yellow from 75 %, red from 90 %
@@ -326,11 +346,13 @@ async function renderHotspot(st) {
 
 	$('hs-qr').classList.toggle('off', !(w.enabled && w.up));
 	$('hs-qr').dataset.off = w.enabled ? t('hs_down') : t('hs_off');
-	if (w.ssid && qrFor !== w.ssid) {
-		qrFor = w.ssid;
+	const qrKey = JSON.stringify([w.ssid, w.secured, w.hidden, w.qr_revision]);
+	if (w.ssid && qrFor !== qrKey) {
+		qrFor = qrKey;
 		try {
 			const r = await fetch('/api/qr', { cache: 'no-store' });
 			setHTML('hs-qr', r.ok ? await r.text() : '');
+			if (!r.ok) qrFor = null;
 		} catch (e) { qrFor = null; }
 	}
 
@@ -553,6 +575,10 @@ function showPage(n) {
 	$('foot-title').textContent = t(pages[page].dataset.title);
 	if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
 	pages[page].scrollTop = 0;
+	if (page == P.hotspot) {
+		qrFor = null;
+		if (last) renderHotspot(last);
+	}
 	if (page == P.sms) {
 		loadSms();
 		markSmsRead();
@@ -922,6 +948,16 @@ function renderAdvanced(a) {
 	setText('ad-temp', d.thermal ? `${d.thermal.temp.toFixed(0)} °C` : '--');
 	setText('ad-bat', [d.battery_mv ? (d.battery_mv / 1000).toFixed(2) + ' V' : null,
 		d.battery_temp != null ? d.battery_temp.toFixed(0) + ' °C' : null].filter(Boolean).join(' · ') || '--');
+	setHTML('ad-temps', temperatureSummary(d.temperatures ?? last?.system?.temperatures));
+	// The overview already covers these direct zones; expansion shows the
+	// individual CPU/NR readings, physical zones and unverified shell/charger.
+	const directZones = ['soc-thmzone', 'gpu-thmzone', 'lte-thmzone', 'mm-thmzone', 'board-thmzone', 'pa-thmzone', 'battery'];
+	setHTML('ad-extra-temps', (d.thermal_zones ?? []).filter((z) => !directZones.includes(z.zone)).map((z) =>
+		`<span class="label">${esc(z.zone)}</span><span class="value">${fmtTemp(z.temp)}` +
+		(z.estimated ? ` · ${esc(t('estimated'))}` : '') +
+		(z.unverified ? ` · <span class="warn">${esc(t('unverified'))}</span>` : '') + '</span>').join(''));
+	$('ad-extra-temps').hidden = !extraTemps;
+	setText('ad-moretemps', t(extraTemps ? 'show_less' : 'show_more'));
 
 	setText('ad-bb', b ? [b.manufacturer, b.model].filter(Boolean).join(' ') : t('no_modem'));
 	setText('ad-sa', b?.sa_allowed == null ? '--' : b.sa_allowed ? t('allowed') : t('nsa_only'));
@@ -946,6 +982,12 @@ function hideIds() {
 	$('ad-showids').textContent = t('show_ids');
 	for (const id of ['id-imei', 'id-iccid', 'id-imsi', 'id-num']) setText(id, '--');
 }
+
+on('ad-moretemps', 'click', () => {
+	extraTemps = !extraTemps;
+	$('ad-extra-temps').hidden = !extraTemps;
+	setText('ad-moretemps', t(extraTemps ? 'show_less' : 'show_more'));
+});
 
 on('ad-showids', 'click', async () => {
 	if (showIds) return hideIds();
@@ -1033,17 +1075,14 @@ function stRow(key, label, value, opts = {}) {
 function stRender() {
 	const v = stTop();
 	if (!v) return;
-	const path = st.map((x) => x.view == 'menu' ? t('settings') : x.view == 'store' ? t('app_store') : x.view == 'appcats' ? t('app_settings') : x.view == 'atres' ? x.cmd : x.cat ? lbl(x.cat.label) : x.item ? lbl(x.item.label) : x.dev ? (x.dev.name ?? x.dev.ip ?? x.dev.mac) : x.view == 'btdev' ? (x.name ?? x.mac) : x.view == 'app' ? (lbl(x.app.name) || x.app.id) : '').join(' › ');
+	const path = st.map((x) => x.view == 'menu' ? t('settings') : x.view == 'store' ? t('app_store') : x.view == 'atres' ? x.cmd : x.view == 'app' ? (lbl(x.app.name) || x.app.id) : x.cat ? lbl(x.cat.label) : x.item ? lbl(x.item.label) : x.dev ? (x.dev.name ?? x.dev.ip ?? x.dev.mac) : x.view == 'btdev' ? (x.name ?? x.mac) : '').join(' › ');
 	setText('st-path', path);
 	let html = '';
 	if (v.view == 'menu') {
-		// the core categories, then one entry that holds the plugins' settings
+		// Apps and their settings share the app manager; plugin categories stay
+		// in the API so an app's detail view can open its own settings.
 		html = stCats == null ? `<div class="sub">${esc(t('loading'))}</div>` :
-			stCats.map((c, i) => c.plugin ? '' : stRow('cat:' + i, lbl(c.label), '', { chev: true })).join('') +
-			(stCats.some((c) => c.plugin) ? stRow('appcats:', t('app_settings'), '', { chev: true }) : '');
-		// (the API lists a plugin category only when its manifest has settings)
-	} else if (v.view == 'appcats') {
-		html = stCats.map((c, i) => c.plugin ? stRow('cat:' + i, lbl(c.label), '', { chev: true }) : '').join('');
+			stCats.map((c, i) => c.plugin ? '' : stRow('cat:' + i, lbl(c.label), '', { chev: true })).join('');
 	} else if (v.view == 'cat') {
 		html = v.items == null ? `<div class="sub">${esc(t('loading'))}</div>` :
 			v.items.map((it) => stRow('item:' + it.id, lbl(it.label), stValue(it),
@@ -1101,6 +1140,7 @@ function stRender() {
 			stRow('info:appkind', t('app_kind'), m.builtin ? t('app_builtin') : t('app_user'), { info: true }) +
 			(m.description ? stRow('info:appdesc', t('app_desc'), lbl(m.description), { info: true }) : '') +
 			stRow('apa:open', t('app_open'), '') +
+			(m.settings?.length ? stRow('apa:settings', t('app_config'), '', { chev: true }) : '') +
 			stRow('apa:remove', t('app_remove'), '') +
 			(m.builtin ? `<div class="stnote">${esc(t('app_builtin_note'))}</div>` : '');
 	} else if (v.view == 'bluetooth') {
@@ -1184,11 +1224,6 @@ function stScreenApplied(id, value) {
 async function stClick(key, el) {
 	const v = stTop();
 	const [k, arg] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
-	if (k == 'appcats') {
-		st.push({ view: 'appcats' });
-		stRender();
-		return;
-	}
 	if (k == 'atp' || k == 'atagain') {
 		const cmd = k == 'atp' ? v.presets[+arg].cmd : v.cmd;
 		const nv = k == 'atp' ? { view: 'atres', cmd, reply: null } : v;
@@ -1320,6 +1355,13 @@ async function stClick(key, el) {
 		return;
 	}
 	if (k == 'apa') {
+		if (arg == 'settings') {
+			if (!v.app.settings?.length) return;
+			const nv = { view: 'cat', cat: { id: 'plugin:' + v.app.id, label: { zh: '设置', en: 'Settings' } }, items: null };
+			st.push(nv); stRender();
+			await stLoadCat(nv);
+			return;
+		}
 		if (arg == 'open') {
 			showPage(P.apps);
 			await loadApps();

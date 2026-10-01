@@ -83,13 +83,17 @@ for version 1 of all three.
   "wan": { "up": true, "uptime": 1519, "ipv4": "10.1.2.3", "ipv6": "240a:...",
            "ipv6_prefix": "240a:.../64", "dns": [ "..." ] },
   "traffic": { "rx_total": 101641661, "tx_total": 47712286, "rx_rate": 1204.5, "tx_rate": 88.0 },
-  "wifi": { "ssid": "E5-Linux", "enabled": true, "up": true, "channel": "149", "band": "5g", "secured": true },
+  "wifi": { "ssid": "E5-Linux", "enabled": true, "up": true, "channel": "149", "band": "5g", "secured": true,
+            "hidden": false, "qr_revision": 1790479700 },
   "clients": [ { "name": "phone", "ip": "192.168.9.12", "mac": "..", "via": "wifi", "signal": -52 } ],
   "battery": { "capacity": 99, "status": "Charging", "current_ma": 194, "voltage_mv": 4350, "limit": 80, "paused": false, "online": true },
   "usb": { "cable": true, "port": "CDP", "state": "configured", "speed": "high-speed", "ip": "192.168.9.2",
            "rx_rate": 812.0, "tx_rate": 20480.5, "link": "online" },
   "system": { "uptime": 5321, "load": 0.42, "mem_total": 1538670592, "mem_available": 794218496,
-              "disk_total": 1020702720, "disk_used": 345812992, "lan_ip": "192.168.9.1" },
+              "disk_total": 1020702720, "disk_used": 345812992, "lan_ip": "192.168.9.1",
+              "temperatures": { "soc": 37.1, "cpu": 37.1, "gpu": 36.0,
+                                "modem": 36.5, "lte": 36.5, "nr": 36.5, "mm": 36.0,
+                                "board": 36.7, "pa": 36.6, "battery": 31.7 } },
   "screen": { "idle": 60, "brightness": 120, "lang": "zh" },
   "sms": { "unread": [ 3 ], "screen": true }
 }
@@ -105,6 +109,32 @@ each time; the data interface follows it (`sipa_eth0`, `sipa_eth8`).  `modem.qos
 subscribed rate: the aggregate maximum bit rate the network grants the data
 context (cid 1), in kbit/s, with its QCI (LTE, `AT+CGEQOSRDP=1`) or 5QI (`nr`,
 `AT+C5GQOSRDP=1`); cached 60 s, `null` without a bearer.
+
+`system.temperatures` is in degrees Celsius, cached for 5 seconds. Missing
+readings are `null`. `cpu` is the maximum of the CPU core/cluster zones;
+`modem` is the maximum of the LTE and NR zones inside the SoC, rather than a
+temperature queried from the CP. `soc`, `gpu`, `board` and `pa` use their named
+thermal zones. `lte` is the LTE zone, `nr` is the maximum of the two NR zones,
+and `mm` is the multimedia zone. `battery` comes from `power_supply/battery/temp` (tenths of a
+degree, converted to Celsius), with the battery thermal zone as a fallback.
+There are no separate RAM, eMMC or SD-card temperature sensors exposed here.
+
+`GET /advanced` adds `device.temperatures` with the same summaries and
+`device.thermal_zones`, an array of
+`{ zone, temp, estimated, unverified }`. `temp` is Celsius or `null`. The
+front/back shell temperatures are estimates from the board/PA/charger zones;
+the charger reading is around 85 °C at room temperature and remains
+unverified, so it and those dependent estimates are marked `unverified`.
+These values are available for diagnostics but excluded from the overview's
+summaries. These flags do not modify the kernel's thermal or charging policy.
+The overview and details page show nine summaries; a Show more button in
+details expands the remaining individual zones.
+
+`wifi.qr_revision` is the wireless configuration modification time. Combined
+with the SSID, security and hidden flags, it invalidates a previously drawn
+QR code after a passphrase change. `GET /qr` encodes the configured security
+type, SSID, passphrase and hidden flag, with special characters escaped.
+Protected networks without a passphrase do not get an open-network QR code.
 
 `usb` is the USB link as it is: `cable` a cable in (an extcon's `USB=1`), `port` what it
 comes from as the charger sees it (`SDP`/`CDP` a computer's port, `DCP` a wall charger),

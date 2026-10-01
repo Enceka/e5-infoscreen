@@ -132,6 +132,15 @@ html, body {
 .track div { height: 100%; width: 0; border-radius: 4px; background: var(--dim); transition: width 0.4s; }
 .usage .track { height: 5px; }
 .usage .track + .mh { margin-top: 7px; }
+.temperatures { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 14px; }
+.temperature { display: flex; justify-content: space-between; gap: 6px; font-size: 13px; }
+.temperature .label { font-size: inherit; }
+.temperature .value { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.grid.thermal-zones { font-size: 12px; grid-template-columns: minmax(0, 1fr) auto; }
+.thermal-zones .label { font-size: inherit; overflow-wrap: anywhere; }
+#ad-moretemps { margin-top: 10px; }
+#ad-extra-temps { margin-top: 10px; }
+#ad-extra-temps[hidden] { display: none; }
 .grid { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; }
 
 /* traffic */

@@ -335,10 +335,14 @@ function wan_status() {
 
 function wifi_config() {
 	let c = cursor();
+	let encryption = c.get('wireless', 'default_radio0', 'encryption');
 	return {
 		ssid: c.get('wireless', 'default_radio0', 'ssid'),
 		key: c.get('wireless', 'default_radio0', 'key'),
-		encryption: c.get('wireless', 'default_radio0', 'encryption'),
+		encryption,
+		secured: encryption != null && encryption != 'none',
+		hidden: c.get('wireless', 'default_radio0', 'hidden') == '1',
+		qr_revision: stat('/etc/config/wireless')?.mtime ?? 0,
 		enabled: c.get('wireless', 'radio0', 'disabled') != '1' &&
 			c.get('wireless', 'default_radio0', 'disabled') != '1',
 		channel: c.get('wireless', 'radio0', 'channel'),
@@ -355,7 +359,9 @@ function wifi_status() {
 		up: (st?.up ?? false) && length(st?.interfaces ?? []) > 0,
 		channel: cfg.channel,
 		band: cfg.band,
-		secured: cfg.encryption != null && cfg.encryption != 'none'
+		secured: cfg.secured,
+		hidden: cfg.hidden,
+		qr_revision: cfg.qr_revision
 	};
 }
 
@@ -483,6 +489,52 @@ function root_disk() {
 	return d;
 }
 
+// Thermal sysfs uses millidegrees; power_supply/temp uses tenths of a degree.
+// Keep the zone names as well as summaries: several zones are not independent
+// sensors, and the charger NTC has an unverified conversion on this board.
+function temperatures() {
+	let cached = state_get('temperatures', 5);
+	if (cached)
+		return cached;
+	let zones = [], by_type = {};
+	for (let z in glob('/sys/class/thermal/thermal_zone*')) {
+		let name = read_trim(z + '/type');
+		if (!name)
+			continue;
+		let raw = read_trim(z + '/temp');
+		let temp = raw != null && match(raw, /^-?[0-9]+$/) ? +raw / 1000.0 : null;
+		if (temp != null && (temp < -40 || temp >= 150))
+			temp = null;
+		push(zones, { zone: name, temp,
+			estimated: name in ['front-thmzone', 'back-thmzone'],
+			unverified: name in ['chg-thmzone', 'front-thmzone', 'back-thmzone'] });
+		by_type[name] = temp;
+	}
+	let values = { soc: by_type['soc-thmzone'], cpu: null,
+		gpu: by_type['gpu-thmzone'], modem: null,
+		lte: by_type['lte-thmzone'], nr: null, mm: by_type['mm-thmzone'],
+		board: by_type['board-thmzone'], pa: by_type['pa-thmzone'],
+		battery: null };
+	for (let name, temp in by_type) {
+		if (temp == null)
+			continue;
+		if (match(name, /^(big7|mid6|core[0-5]|cluster)-thmzone$/))
+			if (values.cpu == null || temp > values.cpu)
+				values.cpu = temp;
+		if (name in ['lte-thmzone', 'nr15-thmzone', 'nr12-thmzone'])
+			if (values.modem == null || temp > values.modem)
+				values.modem = temp;
+		if (name in ['nr15-thmzone', 'nr12-thmzone'])
+			if (values.nr == null || temp > values.nr)
+				values.nr = temp;
+	}
+	let b = read_num('/sys/class/power_supply/battery/temp');
+	values.battery = b == null ? by_type.battery : b / 10.0;
+	let result = { values, zones };
+	state_put('temperatures', result);
+	return result;
+}
+
 function system_status() {
 	let mem = {};
 	for (let line in split(readfile('/proc/meminfo') ?? '', '\n')) {
@@ -499,6 +551,7 @@ function system_status() {
 		mem_available: mem.MemAvailable,
 		disk_total: root_disk().total,
 		disk_used: root_disk().used,
+		temperatures: temperatures().values,
 		lan_ip: '192.168.9.1'
 	};
 }
@@ -789,19 +842,18 @@ function read_kv(path) {
 	return r;
 }
 
-// the SoC's temperature (soc-thmzone: the hottest of its sensors, and the zone
-// with the critical trip); without it the hottest zone there is.  (Not the
-// hottest of all: the E5's chg-thmzone reads some 85 C at room temperature.)
+// Prefer the SoC zone; never substitute the charger or the estimated shell
+// temperature when a SoC sensor is missing.
 function thermal() {
 	let hot = null;
-	for (let z in glob('/sys/class/thermal/thermal_zone*')) {
-		let t = read_num(z + '/temp'), type = read_trim(z + '/type');
-		if (t == null || t <= -40000 || t >= 150000)
+	for (let z in temperatures().zones) {
+		if (z.temp == null)
 			continue;
-		if (type == 'soc-thmzone')
-			return { temp: t / 1000, zone: type };
-		if (hot == null || t > hot.temp * 1000)
-			hot = { temp: t / 1000, zone: type };
+		if (z.zone == 'soc-thmzone')
+			return { temp: z.temp, zone: z.zone };
+		if (match(z.zone, /^(thm[0-3]phy|big7|mid6|core[0-5]|cluster|gpu|mm|lte|nr15|nr12)-thmzone$/) &&
+		    (hot == null || z.temp > hot.temp))
+			hot = { temp: z.temp, zone: z.zone };
 	}
 	return hot;
 }
@@ -858,8 +910,10 @@ function advanced() {
 			kernel: read_trim('/proc/sys/kernel/osrelease'),
 			disk: disk('/'),    // the Debian image for the directory form, the own image standalone
 			thermal: thermal(),
+			temperatures: temperatures().values,
+			thermal_zones: temperatures().zones,
 			battery_mv: (read_num(b + 'voltage_now') ?? 0) / 1000 || null,
-			battery_temp: (read_num(b + 'temp') == null) ? null : read_num(b + 'temp') / 10
+			battery_temp: (read_num(b + 'temp') == null) ? null : read_num(b + 'temp') / 10.0
 		},
 		baseband: m ? {
 			manufacturer: mm_clean(g.manufacturer),
@@ -1172,16 +1226,18 @@ function status() {
 // text goes to qrencode in a file, not on a command line.
 function wifi_qr() {
 	let cfg = wifi_config();
-	if (!cfg.ssid)
+	if (!cfg.ssid || (cfg.secured && !cfg.key))
 		return null;
 	let esc = (s) => replace(s ?? '', /([\\;,:"])/g, '\\$1');
+	let auth = match(cfg.encryption ?? '', /^wep/) ? 'WEP' : 'WPA';
 	let uri = cfg.secured
-		? `WIFI:T:WPA;S:${esc(cfg.ssid)};P:${esc(cfg.key)};;`
-		: `WIFI:T:nopass;S:${esc(cfg.ssid)};;`;
-	let tmp = '/tmp/run/e5-infoscreen-qr.txt';
+		? `WIFI:T:${auth};S:${esc(cfg.ssid)};P:${esc(cfg.key)};H:${cfg.hidden ? 'true' : 'false'};;`
+		: `WIFI:T:nopass;S:${esc(cfg.ssid)};H:${cfg.hidden ? 'true' : 'false'};;`;
+	let tick = clock(true);
+	let tmp = `/tmp/e5-infoscreen-qr.${tick[0]}${tick[1]}`;
 	writefile(tmp, uri);
-	let svg = sh(`qrencode -t SVG -m 1 -l M -r ${tmp} -o - 2>/dev/null`);
-	writefile(tmp, '');
+	let svg = sh(`qrencode -t SVG -m 4 -l M -r ${tmp} -o - 2>/dev/null`);
+	system(`rm -f ${tmp}`);
 	return svg;
 }
 

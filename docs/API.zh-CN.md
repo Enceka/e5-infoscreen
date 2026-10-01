@@ -63,6 +63,25 @@
 `traffic`（`rx_rate`/`tx_rate` 为距上次读取的每秒字节数，第一次为 `null`）、`wifi`、
 `clients`、`battery`、`system`（含 `disk_total`/`disk_used`：根文件系统，`df /`，缓存 60 秒）、`screen`、`sms`。模组部分缓存 10 秒，`modem.sim_card` 除外：模组对应的 SIM 卡，0 或 1（e5-linux 的 `e5-sim`），每次现读；数据接口跟着它走（`sipa_eth0`、`sipa_eth8`）。`modem.qos` 是签约速率：网络给数据上下文（cid 1）的聚合最大比特率（AMBR），单位 kbit/s，附 QCI（LTE，`AT+CGEQOSRDP=1`）或 5QI（`nr`，`AT+C5GQOSRDP=1`）；缓存 60 秒，没有承载时为 `null`。
 
+`system.temperatures` 为摄氏度，缓存 5 秒，缺失读数为 `null`：
+`soc`（SoC 温控区）、`cpu`（CPU 核心/集群的最高值）、`gpu`、
+`modem`（SoC 内 LTE/NR 温控区的最高值，并非向 CP 查询的温度）、
+`lte`（4G）、`nr`（两个 5G 温控区的最高值）、`mm`（多媒体）、
+`board`（主板）、`pa`（射频功放）、`battery`（电池）。电池温度优先读取
+`power_supply/battery/temp` 并从 0.1°C 换算；其余 thermal sysfs 从毫摄氏度换算。
+没有独立暴露的内存、eMMC 或 SD 卡温度传感器，不用 SoC 温度代替它们。
+
+`GET /advanced` 的 `device.temperatures` 为同一套汇总值，`device.thermal_zones` 返回所有温控区：
+`{ zone, temp, estimated, unverified }`，`temp` 为摄氏度或 `null`。
+前/后壳温度为主板、功放和充电器读数计算的估算值。
+充电器温控区在室温下约 85°C，尚待核实，因此它和依赖它的壳温估算都标记
+`unverified`，不参与概览汇总。这些标记只影响信息展示，不修改内核的温控或充电保护。
+概览和温度详情默认显示九项汇总，详情中的“查看更多”展开其余温控区。
+
+`wifi.qr_revision` 为无线配置文件的修改时间，与热点名、加密标志和隐藏标志一起用于刷新
+二维码，避免改密码后继续显示旧码。`GET /qr` 按实际加密类型编码热点名、密码和隐藏标志，
+并转义特殊字符；加密热点缺少密码时不生成“无密码网络”的二维码。
+
 ## 3. 设置项
 
 分类的 `items` 按类型绘制；插件的设置项格式相同。

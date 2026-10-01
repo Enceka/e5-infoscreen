@@ -56,6 +56,7 @@
 			<div class="mh"><span data-t="storage"></span><span id="ov-disk">--</span></div>
 			<div class="track"><div id="ov-disk-bar"></div></div>
 		</div>
+		<div id="ov-temps" class="card temperatures"></div>
 	</section>
 
 	<!-- signal -->
@@ -171,6 +172,12 @@
 			<span class="label" data-t="storage"></span><span id="ad-disk" class="value">--</span>
 			<span class="label" data-t="temperature"></span><span id="ad-temp" class="value">--</span>
 			<span class="label" data-t="battery"></span><span id="ad-bat" class="value">--</span>
+		</div>
+		<div class="card">
+			<div class="lh"><span data-t="temperatures"></span></div>
+			<div id="ad-temps" class="temperatures"></div>
+			<button id="ad-moretemps" class="btn" data-t="show_more"></button>
+			<div id="ad-extra-temps" class="grid thermal-zones" hidden></div>
 		</div>
 		<div class="card grid">
 			<span class="label sect" data-t="baseband"></span><span></span>
