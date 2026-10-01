@@ -3,6 +3,6 @@
 #   version    版本号，点分，须比设备上已有的新
 #   notes_zh   发布说明（中文）
 #   notes_en   release notes (English)；留空则用中文
-version=1.1.0
-notes_zh=信息屏的第一个在线更新版本：应用商店、屏幕自己的在线更新（高级 -> 系统），以及“设备”页按实际情况显示 USB 链路。
-notes_en=First online-update release: the app store, the screen's own online update (Advanced -> System), and the Device page's USB link as it is.
+version=1.2.0
+notes_zh=九项温度汇总与可展开详情，应用管理和应用设置合并，修复 Wi-Fi 连接二维码及密码变更后的刷新，修正电池充电状态显示。
+notes_en=Nine temperature summaries with expandable details, per-app settings in the app manager, corrected Wi-Fi join codes and passphrase refresh, and battery charging-state fixes.
