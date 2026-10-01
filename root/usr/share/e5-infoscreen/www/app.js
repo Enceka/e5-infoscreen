@@ -36,7 +36,7 @@ const I18N = {
 		show_key: '显示密码', hide_key: '隐藏密码', hs_off: '热点已关闭', hs_down: '热点未启动', on: '开', off: '关',
 		connected: '已连接', connecting: '连接中', disconnected: '未连接',
 		no_modem: '无模组', no_sim: '无 SIM 卡', searching: '搜索网络',
-		charging: '充电中', full: '已充满', discharging: '使用电池',
+		charging: '充电中', full: '已充满', discharging: '使用电池', not_charging: '未充电',
 		none: '无', wifi: 'Wi-Fi', usb: 'USB', unnamed: '未命名',
 		hotspot_on: '已开启', hotspot_off: '已关闭', hotspot_starting: '启动中',
 		reconnecting: '正在重新连接…', turning_on: '正在开启热点…', turning_off: '正在关闭热点…',
@@ -69,7 +69,7 @@ const I18N = {
 		show_key: 'Show key', hide_key: 'Hide key', hs_off: 'Hotspot off', hs_down: 'Hotspot not up', on: 'On', off: 'Off',
 		connected: 'Connected', connecting: 'Connecting', disconnected: 'Offline',
 		no_modem: 'No modem', no_sim: 'No SIM', searching: 'Searching',
-		charging: 'Charging', full: 'Full', discharging: 'On battery',
+		charging: 'Charging', full: 'Full', discharging: 'On battery', not_charging: 'Not charging',
 		none: 'None', wifi: 'Wi-Fi', usb: 'USB', unnamed: 'unnamed',
 		hotspot_on: 'On', hotspot_off: 'Off', hotspot_starting: 'Starting',
 		reconnecting: 'Reconnecting…', turning_on: 'Turning the hotspot on…', turning_off: 'Turning the hotspot off…',
@@ -209,12 +209,28 @@ function renderBar(st) {
 	const b = st.battery, bat = $('bar-bat');
 	const cap = b.capacity ?? 0;
 	bat.querySelector('b').style.width = Math.round(cap / 100 * 17) + 'px';
-	bat.classList.toggle('low', cap <= 15 && b.status != 'Charging');
-	bat.classList.toggle('charging', b.status == 'Charging');
+	bat.classList.toggle('low', cap <= 15 && chargeState(b) != 'charging');
+	bat.classList.toggle('charging', chargeState(b) == 'charging');
 	setText('bar-batpct', b.capacity == null ? '--' : cap + '%');
 	tickClock();
 	const n_sms = st.sms?.unread?.length ?? 0;
 	setText('bar-sms', n_sms ? '✉ ' + n_sms : '');
+}
+
+// What the battery does, from the current as much as from the status: the
+// charger-manager reports "Not charging" whenever it has stopped charging --
+// a JEITA temperature zone, a health check, the charge limit -- while the
+// AW322xx chip may go on charging (it writes its CE bit only from its own
+// flag), and "Full" only at 100 %.  So "Not charging" is not "full", and
+// current into the battery is charging whatever the status says.
+function chargeState(b) {
+	if (!b.online)
+		return 'discharging';
+	if (b.status == 'Full' || (b.capacity ?? 0) >= 100)
+		return 'full';
+	if (b.status == 'Charging' || (b.current_ma ?? 0) > 20)
+		return 'charging';
+	return 'not_charging';
 }
 
 function batteryText(b) {
@@ -223,8 +239,7 @@ function batteryText(b) {
 	// 100 % or "Not charging", neither of which tells why
 	if (b.paused && b.online)
 		return `${b.capacity}% · ${t('paused_short')}${b.limit != null ? ` · ${t('limit')} ${b.limit}%` : ''}`;
-	const s = { Charging: t('charging'), Full: t('full'), Discharging: t('discharging'), 'Not charging': t('full') }[b.status] ?? '';
-	return b.capacity + '%' + (s ? ' · ' + s : '');
+	return b.capacity + '%' + ' · ' + t(chargeState(b));
 }
 
 function renderOverview(st) {

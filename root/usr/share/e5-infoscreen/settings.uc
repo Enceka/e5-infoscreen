@@ -339,9 +339,14 @@ const charge = uci_category('charge', L('充电', 'Charging'), [
 	let m = match(st, /capacity=([0-9]+) status=([^ ]+)/);
 	let once = match(st, /full_once=1/);
 	let paused = match(st, /stopped=1/);
+	// (as the status bar has it, app.js chargeState: "Not charging" while current
+	// flows in is charging, and only 100 % is full)
+	let ma = +(trim(ctx.sh('cat /sys/class/power_supply/battery/current_now 2>/dev/null') ?? '') || '0') / 1000;
 	let word = !m ? null : paused ? L('已暂停充电', 'paused')
-		: (m[2] == 'Charging') ? L('充电中', 'charging') : (m[2] == 'Full') ? L('已充满', 'full')
-		: (m[2] == 'Discharging') ? L('使用电池', 'on battery') : L(m[2], m[2]);
+		: (m[2] == 'Full' || +m[1] >= 100) ? L('已充满', 'full')
+		: (m[2] == 'Charging' || (m[2] == 'Not' && ma > 20)) ? L('充电中', 'charging')
+		: (m[2] == 'Discharging') ? L('使用电池', 'on battery')
+		: (m[2] == 'Not') ? L('未充电', 'not charging') : L(m[2], m[2]);
 	return [
 		{ id: 'state', type: 'info', label: L('当前', 'Now'),
 		  value: m ? L(`${m[1]}% · ${word.zh}`, `${m[1]}% · ${word.en}`) : '--' },
