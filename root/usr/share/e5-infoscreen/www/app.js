@@ -27,6 +27,9 @@ const I18N = {
 		temperatures: '温度详情', cpu_temp: 'CPU', gpu_temp: 'GPU', modem_temp: '基带',
 		board_temp: '主板', battery_temp: '电池', pa_temp: '射频功放', estimated: '估算', unverified: '待核实',
 		soc_temp: 'SoC', lte_temp: '4G 基带', nr_temp: '5G 基带', mm_temp: '多媒体', show_more: '查看更多', show_less: '收起',
+		update_found: '信息屏有更新', update_now: '立即更新', update_later: '推迟更新',
+		update_logs: '查看更新日志', update_hide_logs: '收起更新日志', update_scope: '只更新信息屏，设置和应用保留',
+		update_later_hint: '推迟后 24 小时再提醒', update_busy: '正在更新…', update_retry: '重试更新', update_deferred: '已推迟更新',
 		locks: '锁定', lte_bands: 'LTE 频段', nr_bands: 'NR 频段', cell_lock: '锁小区',
 		not_locked: '未锁定', slot: '卡槽', operator: '运营商', registration: '注册',
 		number: '本机号码', show_ids: '显示识别码', hide_ids: '隐藏识别码',
@@ -63,6 +66,9 @@ const I18N = {
 		temperatures: 'Temperatures', cpu_temp: 'CPU', gpu_temp: 'GPU', modem_temp: 'Modem',
 		board_temp: 'Board', battery_temp: 'Battery', pa_temp: 'RF PA', estimated: 'Estimated', unverified: 'Unverified',
 		soc_temp: 'SoC', lte_temp: '4G modem', nr_temp: '5G modem', mm_temp: 'Media', show_more: 'Show more', show_less: 'Show less',
+		update_found: 'Info screen update', update_now: 'Update now', update_later: 'Later',
+		update_logs: 'Release notes', update_hide_logs: 'Hide release notes', update_scope: 'Settings and apps stay; the screen only',
+		update_later_hint: 'Remind me in 24 hours', update_busy: 'Updating…', update_retry: 'Retry update', update_deferred: 'Update postponed',
 		locks: 'Locks', lte_bands: 'LTE bands', nr_bands: 'NR bands', cell_lock: 'Cell lock',
 		not_locked: 'Not locked', slot: 'Slot', operator: 'Operator', registration: 'Registration',
 		number: 'Number', show_ids: 'Show identifiers', hide_ids: 'Hide identifiers',
@@ -89,6 +95,10 @@ const POLL_BLANK = 5000;     // (still quick to notice a new SMS)
 const KEY_LOG_MAX = 200;
 const TEMP_FIELDS = ['cpu', 'gpu', 'soc', 'lte', 'nr', 'mm', 'board', 'pa', 'battery'];
 let extraTemps = false;
+let updateState = null;
+let updateExpanded = false;
+let updateRequest = false;
+let updateLastPoll = -Infinity;
 
 let lang = 'zh';
 let page = 0;
@@ -268,7 +278,8 @@ function renderOverview(st) {
 
 	const nw = st.clients.filter((c) => c.via == 'wifi').length, nu = st.clients.filter((c) => c.via == 'usb').length;
 	setText('ov-clients', st.clients.length ? `${st.clients.length}${t('devices')}` + (nw ? ` · ${t('wifi')} ${nw}` : '') + (nu ? ` · ${t('usb')}` : '') : t('none'));
-	setText('ov-bat', batteryText(st.battery));
+	const batteryTemp = st.system.temperatures?.battery;
+	setText('ov-bat', batteryText(st.battery) + (batteryTemp == null ? '' : ` · ${batteryTemp.toFixed(1)}°C`));
 	// + charging, - discharging (the fuel gauge's sign)
 	const b = st.battery, ma = b.current_ma;
 	// within ±20 mA it is the gauge's idle offset (on USB, not charging): no colour, no +
@@ -279,12 +290,12 @@ function renderOverview(st) {
 	const sy = st.system;
 	usage('ov-mem', sy.mem_total == null ? null : sy.mem_total - sy.mem_available, sy.mem_total);
 	usage('ov-disk', sy.disk_used, sy.disk_total);
-	setHTML('ov-temps', temperatureSummary(sy.temperatures));
+	setHTML('ov-temps', temperatureSummary(sy.temperatures, TEMP_FIELDS.filter((name) => name != 'battery')));
 }
 
-function temperatureSummary(values) {
+function temperatureSummary(values, fields = TEMP_FIELDS) {
 	const temps = values ?? {};
-	return TEMP_FIELDS.map((name) =>
+	return fields.map((name) =>
 		`<div class="temperature"><span class="label">${esc(t(name + '_temp'))}</span>` +
 		`<span class="value">${fmtTemp(temps[name])}</span></div>`).join('');
 }
@@ -394,6 +405,7 @@ function render(st) {
 	renderSignal(st);
 	renderHotspot(st);
 	renderDevice(st);
+	renderUpdateNotice();
 }
 
 /* ---------- clock ---------- */
@@ -434,6 +446,7 @@ async function poll() {
 			}
 			if (!blank) render(st);
 			smsCheck(st);
+			pollUpdate();
 		}
 	} catch (e) {
 		console.log('poll: ' + e);
@@ -448,6 +461,68 @@ function post(path, body) {
 		body: JSON.stringify(body ?? {})
 	}).then((r) => r.json()).catch(() => null);
 }
+
+/* ---------- overview update notification ---------- */
+
+function renderUpdateNotice() {
+	const u = updateState, card = $('update-card');
+	if (!card) return;
+	card.hidden = page != P.overview || blank || locked || picShown || appOpen ||
+		!u || (!u.busy && (!u.available || u.deferred));
+	if (card.hidden) return;
+	setText('update-version', `${u.current} → ${u.latest?.version ?? ''}`);
+	setText('update-details', t(updateExpanded ? 'update_hide_logs' : 'update_logs'));
+	$('update-details').setAttribute('aria-expanded', String(updateExpanded));
+	const notes = lbl(u.latest?.notes) || t('update_scope');
+	if ($('update-notes').textContent != notes) setText('update-notes', notes);
+	$('update-notes').hidden = !updateExpanded;
+	const error = u.action == 'apply' && u.result == 'failed' ? u.error : null;
+	$('update-error').hidden = !error;
+	setText('update-error', error ?? '');
+	const busy = u.busy || u.checking || updateRequest;
+	setText('update-now', t(u.busy ? 'update_busy' : error ? 'update_retry' : 'update_now'));
+	$('update-now').disabled = busy;
+	$('update-later').disabled = busy;
+}
+
+async function pollUpdate(force = false) {
+	const now = performance.now(), fast = updateState?.checking || updateState?.busy;
+	if (updateRequest || (!force && now - updateLastPoll < (fast ? 2000 : 30000))) return;
+	updateLastPoll = now;
+	updateRequest = true;
+	try {
+		const r = await fetch('/api/update' + (last?.wan?.up ? '?check=1' : ''), { cache: 'no-store' });
+		if (r.ok) {
+			const u = await r.json();
+			if (u.latest?.version != updateState?.latest?.version) updateExpanded = false;
+			updateState = u;
+		}
+	} catch (e) { console.log('update: ' + e); }
+	updateRequest = false;
+	renderUpdateNotice();
+}
+
+on('update-details', 'click', () => {
+	updateExpanded = !updateExpanded;
+	renderUpdateNotice();
+});
+
+async function updateAction(action) {
+	if (!updateState || updateRequest || updateState.busy || updateState.checking) return;
+	updateRequest = true;
+	renderUpdateNotice();
+	const result = await post('update', { action, version: updateState.latest?.version });
+	updateRequest = false;
+	if (result?.ok) {
+		updateState = result;
+		if (action == 'apply') updateState.busy = true;
+		else toast(t('update_deferred'));
+	} else toast(`${t('failed')}${result?.error ? ': ' + result.error : ''}`);
+	renderUpdateNotice();
+	setTimeout(() => pollUpdate(true), 500);
+}
+on('update-now', 'click', () => updateAction('apply'));
+on('update-later', 'click', () => updateAction('defer'));
 
 // the volume keys: one step, silently, and with the screen lit the level over
 // the page for a moment
@@ -511,6 +586,7 @@ function picOpen(src, caption, onClose, note) {
 	$('pic').hidden = false;
 	picShown = true;
 	picOpen.onClose = onClose;
+	renderUpdateNotice();
 }
 
 function picClose() {
@@ -519,6 +595,7 @@ function picClose() {
 	const f = picOpen.onClose;
 	picOpen.onClose = null;
 	if (f) f();
+	renderUpdateNotice();
 }
 
 // the first start after an install (screen.donate_seen false): the About
@@ -597,13 +674,22 @@ function showPage(n) {
 	}
 	if (page == P.settings) stOpen();
 	if (page == P.apps) loadApps();
+	renderUpdateNotice();
 }
 
 function focusables() {
-	return Array.from(pages[page].querySelectorAll('button')).filter((b) => b.offsetParent !== null);
+	const list = Array.from(pages[page].querySelectorAll('button'));
+	if (page == P.overview && $('update-card'))
+		list.push(...$('update-card').querySelectorAll('button, [tabindex="0"]'));
+	return list.filter((b) => b.offsetParent !== null && !b.disabled);
 }
 
 function moveFocus(dir) {
+	if (document.activeElement === $('update-notes')) {
+		const notes = $('update-notes'), before = notes.scrollTop;
+		notes.scrollTop += dir * 60;
+		if (notes.scrollTop != before) return;
+	}
 	const list = focusables();
 	const pg = pages[page];
 	if (!list.length) {
@@ -1597,7 +1683,7 @@ on('dv-reconnect', 'click', async () => {
 
 // the page and this script must be the same version: if an element the
 // script needs is missing, load the page once more past the cache
-if (!$('pic') && !sessionStorage.getItem('e5-reloaded')) {
+if ((!$('pic') || !$('update-card')) && !sessionStorage.getItem('e5-reloaded')) {
 	sessionStorage.setItem('e5-reloaded', '1');
 	location.reload();
 } else {

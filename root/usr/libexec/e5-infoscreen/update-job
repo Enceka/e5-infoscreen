@@ -1,0 +1,58 @@
+#!/bin/sh
+# One background update task at a time; the API never waits for downloads.
+set -u
+ACTION=${1:-}
+case "$ACTION" in check|apply|rollback) ;; *) exit 2 ;; esac
+RUN=/tmp/run/e5-infoscreen
+LOCK=$RUN/update-job.lock
+TOOL=/usr/libexec/e5-infoscreen/update
+[ -f "$(dirname "$0")/update" ] && TOOL=$(dirname "$0")/update
+mkdir -p "$RUN"
+if [ -n "${3:-}" ]; then
+	[ "$(cat "$LOCK/token" 2>/dev/null)" = "$3" ] || exit 1
+elif ! mkdir "$LOCK" 2>/dev/null; then
+	pid=$(cat "$LOCK/pid" 2>/dev/null || :)
+	case "$pid" in ''|*[!0-9]*) exit 0 ;; esac
+	if kill -0 "$pid" 2>/dev/null && tr '\000' ' ' < "/proc/$pid/cmdline" | grep -qF "$0"; then
+		exit 0
+	fi
+	rm "$LOCK/pid" 2>/dev/null || :
+	rm "$LOCK/token" "$LOCK/queued-at" 2>/dev/null || :
+	rmdir "$LOCK" 2>/dev/null || exit 0
+	mkdir "$LOCK" 2>/dev/null || exit 0
+fi
+echo $$ > "$LOCK/pid"
+cleanup() {
+	rm "$LOCK/pid"
+	rm "$LOCK/token" "$LOCK/queued-at" 2>/dev/null || :
+	rmdir "$LOCK"
+	case "$0" in
+		"$RUN"/job-*/update-job)
+			local work=$(dirname "$0")
+			rm "$work/update-job" "$work/update"
+			rmdir "$work"
+			;;
+	esac
+}
+trap cleanup EXIT
+trap 'echo failed > "$RUN/update-result"; exit 1' INT TERM
+echo "$ACTION" > "$RUN/update-action"
+echo running > "$RUN/update-result"
+: > "$RUN/update.log"
+if [ "$ACTION" = check ]; then
+	"$TOOL" fetch > "$RUN/update.log" 2>&1
+	rc=$?
+	date +%s > "$RUN/update-checked-at"
+	cp "$RUN/update.log" "$RUN/update-check.txt"
+else
+	if [ "$ACTION" = apply ] && [ -n "${2:-}" ] &&
+	   [ "$(jsonfilter -i "$RUN/latest.json" -e '@.version' 2>/dev/null)" != "$2" ]; then
+		echo 'error: the release has changed; check again' > "$RUN/update.log"
+		rc=1
+	else
+		"$TOOL" "$ACTION" > "$RUN/update.log" 2>&1
+		rc=$?
+	fi
+fi
+if [ "$rc" = 0 ]; then echo done > "$RUN/update-result"; else echo failed > "$RUN/update-result"; fi
+exit "$rc"

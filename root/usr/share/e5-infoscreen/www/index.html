@@ -228,6 +228,20 @@
 	<span id="dots"></span>
 </footer>
 
+<!-- A non-modal update notice, shown only on the overview. -->
+<aside id="update-card" hidden aria-label="信息屏更新" aria-live="polite">
+	<div class="update-heading"><strong data-t="update_found"></strong><span id="update-version"></span></div>
+	<div id="update-scope" class="sub" data-t="update_scope"></div>
+	<button id="update-details" class="update-details" aria-expanded="false" aria-controls="update-notes" data-t="update_logs"></button>
+	<div id="update-notes" hidden tabindex="0"></div>
+	<div id="update-error" hidden></div>
+	<div class="update-actions">
+		<button id="update-now" class="btn on" data-t="update_now"></button>
+		<button id="update-later" class="btn" data-t="update_later"></button>
+	</div>
+	<div class="update-later-hint" data-t="update_later_hint"></div>
+</aside>
+
 <!-- a picture over everything (the 赞赏码): a key or a tap closes it -->
 <div id="pic" hidden><img id="pic-img" alt=""><div id="pic-caption"></div><div id="pic-note"></div><div id="pic-close"></div></div>
 

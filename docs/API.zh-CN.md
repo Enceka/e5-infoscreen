@@ -29,6 +29,9 @@
 | 接口 | 返回 / 作用 |
 |---|---|
 | `GET /status` | 各页面显示的全部数据，页面每 2 秒读一次（见下） |
+| `GET /update` | `{ current, latest, available, busy, checking, checked_at, deferred, deferred_until, error, action, result, backup }`：信息屏更新状态 |
+| `GET /update?check=1` | 同上；到期时启动后台检查，正常间隔 6 小时，失败后 10 分钟重试 |
+| `POST /update` | `{ action: "check"\|"apply"\|"rollback"\|"defer", version }`，返回更新状态及 `{ ok, error }`；立即更新和推迟须匹配提示的版本 |
 | `GET /traffic` | `{ wan, lan }`，各为 `{ available, since, today, month, total, days[] }`，其中 `{ rx, tx }` 单位字节（vnstat；`wan` 为模组数据接口，`lan` 为局域网网桥）；`days` 是最近 7 天，`{ date: "MM-DD", rx, tx }`；`since` 为开始统计的时间。`wan` 的字段在顶层也有一份。 |
 | `GET /sms` | `{ messages: [ { id, number, text, time, state, type, unread } ] }`，新的在前；`time` 为 ISO 8601 |
 | `POST /sms-read` | 全部标为已读（清空未读列表） |
@@ -76,7 +79,8 @@
 前/后壳温度为主板、功放和充电器读数计算的估算值。
 充电器温控区在室温下约 85°C，尚待核实，因此它和依赖它的壳温估算都标记
 `unverified`，不参与概览汇总。这些标记只影响信息展示，不修改内核的温控或充电保护。
-概览和温度详情默认显示九项汇总，详情中的“查看更多”展开其余温控区。
+概览把电池温度放在电池项，另显示八项汇总；温度详情仍默认显示九项，
+“查看更多”展开其余温控区。
 
 `wifi.qr_revision` 为无线配置文件的修改时间，与热点名、加密标志和隐藏标志一起用于刷新
 二维码，避免改密码后继续显示旧码。`GET /qr` 按实际加密类型编码热点名、密码和隐藏标志，
@@ -271,6 +275,10 @@ tar -czf nettest-1.0.tar.gz -C www/plugins nettest     # 或：cd www/plugins &&
 （只能在 `usr/`、`www/`、`etc/` 下，不能碰 `etc/config` 和 `etc/e5-infoscreen`；不能有 `..`、绝对路径、链接），
 先把要被替换的文件存到 `/etc/e5-infoscreen/update-backup.tar.gz`，再解包并重启信息屏；`update rollback` 恢复备份。
 版本号在 `/usr/share/e5-infoscreen/VERSION`。屏幕上：高级 → 系统 → 检查更新，然后“更新到 x.y.z”。
+概览发现新版本时显示浮窗，可展开更新日志、立即更新或推迟更新。推迟会把
+`update_defer_version` 和 `update_defer_until` 存入 `e5-infoscreen.main`，同一版本
+24 小时内不再提醒，重启信息屏也保留；更高版本仍会提示。
+后台检查和安装通过 `update-job` 互斥执行。提示不自动安装，不点亮熄灭或锁定的屏幕。
 需要新软件包或更新系统的版本不能这样装，要更新系统镜像。
 
 发布新版本：提高 `VERSION` 并提交，运行 `tools/make-release.sh "说明" "notes"`，把

@@ -463,22 +463,17 @@ function trial_image() {
 
 // the screen's own online update (/usr/libexec/e5-infoscreen/update): what the last check found,
 // and whether an update or a rollback is running
-const UPD = '/usr/libexec/e5-infoscreen/update';
-const UPD_RUN = '/tmp/run/e5-infoscreen';
+const UPDATES = loadfile('/usr/share/e5-infoscreen/updates.uc', { raw_mode: true })()(ctx);
 function update_state() {
-	let cur = ctx.read_trim('/usr/share/e5-infoscreen/VERSION') ?? '?';
-	let check = ctx.read_trim(`${UPD_RUN}/update-check.txt`);
-	let latest = null;
-	try { latest = json(ctx.read_trim(`${UPD_RUN}/latest.json`) ?? 'null'); } catch (e) {}
-	let busy = ctx.run(`pgrep -f "${UPD} (apply|rollback)" >/dev/null 2>&1`) == 0;
+	let s = UPDATES.state();
 	let note;
-	if (busy) note = L('正在更新，完成后屏幕会重新载入', 'Updating; the screen reloads when it is done');
-	else if (check == null) note = L('从 GitHub 获取最新的信息屏版本', 'Asks GitHub for the latest info screen');
-	else if (match(check, /^newer /)) note = L(`有新版本 ${substr(check, 6)}`, `${substr(check, 6)} is out`);
-	else if (match(check, /^current /)) note = L('已是最新版本', 'Up to date');
-	else note = L(`检查失败：${replace(check, /^error: /, '')}`, `The check failed: ${replace(check, /^error: /, '')}`);
-	return { cur, latest, busy, note, newer: !busy && check != null && match(check, /^newer /) != null,
-	         backup: ctx.run('[ -f /etc/e5-infoscreen/update-backup.tar.gz ]') == 0 };
+	if (s.busy) note = L('正在更新，完成后屏幕会重新载入', 'Updating; the screen reloads when it is done');
+	else if (s.checking) note = L('正在检查更新', 'Checking for updates');
+	else if (s.available) note = L(`有新版本 ${s.latest.version}`, `${s.latest.version} is out`);
+	else if (s.error) note = L(`检查失败：${s.error}`, `The check failed: ${s.error}`);
+	else if (s.checked_at) note = L('已是最新版本', 'Up to date');
+	else note = L('从 GitHub 获取最新的信息屏版本', 'Asks GitHub for the latest info screen');
+	return { ...s, cur: s.current, note, newer: s.available && !s.busy && !s.checking };
 }
 
 const system_cat = {
@@ -556,13 +551,10 @@ const system_cat = {
 			return ctx.run(`e5-next-boot ${value} >/dev/null 2>&1`) == 0 ? null : 'e5-next-boot failed';
 		}
 		if (id == 'update_check') {
-			ctx.run(`mkdir -p ${UPD_RUN}; ${UPD} fetch > ${UPD_RUN}/update-check.txt 2>&1`);
-			return null;
+			return UPDATES.start('check');
 		}
 		if (id == 'update_apply' || id == 'update_rollback') {
-			let what = (id == 'update_apply') ? 'apply' : 'rollback';
-			ctx.run(`(${UPD} ${what} > ${UPD_RUN}/update.log 2>&1; rm -f ${UPD_RUN}/update-check.txt) >/dev/null 2>&1 &`);
-			return null;
+			return UPDATES.start(id == 'update_apply' ? 'apply' : 'rollback');
 		}
 		if (id == 'reboot') { ctx.run('(sleep 2; reboot) >/dev/null 2>&1 &'); return null; }
 		if (id == 'poweroff') { ctx.run('(sleep 2; poweroff) >/dev/null 2>&1 &'); return null; }

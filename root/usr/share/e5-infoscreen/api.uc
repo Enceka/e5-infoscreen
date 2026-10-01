@@ -1081,6 +1081,10 @@ function settings_items(c) {
 	return c.items ? c.items() : [];
 }
 
+function screen_updates() {
+	return loadfile('/usr/share/e5-infoscreen/updates.uc', { raw_mode: true })()(make_ctx(null));
+}
+
 function query_args(qs) {
 	let q = {};
 	for (let kv in split(qs ?? '', '&')) {
@@ -1398,6 +1402,15 @@ global.handle_request = function(env) {
 	try {
 		if (!post && path == '/status')
 			return reply_json(200, status());
+		if (path == '/update') {
+			let u = screen_updates();
+			if (!post)
+				return reply_json(200, match(env.QUERY_STRING ?? '', /(^|&)check=1/) ? u.auto_check() : u.state());
+			let b = read_body(env);
+			let error = b.action == 'defer' ? u.defer(b.version) : u.start(b.action, b.version);
+			let s = u.state();
+			return reply_json(error ? 400 : 200, { ...s, ok: !error, error: error ?? s.error });
+		}
 		if (!post && path == '/qr') {
 			let svg = wifi_qr();
 			return svg ? reply(200, 'image/svg+xml', svg) : reply_json(404, { error: 'no hotspot' });

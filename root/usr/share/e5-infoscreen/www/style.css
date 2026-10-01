@@ -104,6 +104,7 @@ html, body {
 /* long values (addresses, versions, firmware) wrap instead of ending in "..." */
 .value { text-align: right; min-width: 0; overflow-wrap: anywhere; }
 .value.one { white-space: nowrap; }   /* short lines that must not break (the battery) */
+#ov-bat { font-size: 13px; }
 .value.strong { font-weight: bold; text-align: left; font-size: 17px; }
 .value.small, .small { font-size: 12px; }
 .sub { color: var(--dim); font-size: 12px; }
@@ -258,6 +259,25 @@ html, body {
 #dots i.on { background: var(--text); }
 
 /* backlight off: nothing to draw, and the first touch only wakes */
+/* Update notice: compact by default; release notes scroll inside the card. */
+#update-card {
+	position: fixed; left: 8px; right: 8px; bottom: 34px; z-index: 6;
+	padding: 12px; border: 1px solid var(--accent); border-radius: 12px;
+	background: var(--card); box-shadow: 0 6px 24px #000a;
+	max-height: calc(100% - 76px); overflow-y: auto;
+}
+#update-card[hidden], #update-notes[hidden], #update-error[hidden] { display: none; }
+.update-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 14px; }
+#update-version { color: var(--accent); font-variant-numeric: tabular-nums; }
+#update-scope { margin-top: 5px; font-size: 12px; }
+.update-details { padding: 7px 0; border: 0; background: transparent; color: var(--accent); font-size: 13px; text-align: left; }
+#update-notes { max-height: 145px; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; font-size: 13px; margin-bottom: 8px; }
+#update-error { color: var(--poor); font-size: 12px; overflow-wrap: anywhere; margin-bottom: 8px; }
+.update-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.update-actions .btn { width: 100%; }
+.update-actions .btn:disabled { opacity: .5; }
+.update-later-hint { margin-top: 6px; color: var(--dim); font-size: 11px; text-align: right; }
+
 /* a picture over everything (picOpen), below the dark screen */
 #pic {
 	position: fixed; inset: 0; z-index: 8; background: var(--bg);

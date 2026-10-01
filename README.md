@@ -9,7 +9,7 @@ device at a glance, and is driven by touch and by the keypad.
 
 | page | shows |
 |---|---|
-| Overview | download/upload rate side by side, traffic since boot, network state (5G/4G, IPv4/IPv6), hotspot, clients, battery, battery current (+ charging, - discharging) and voltage, memory and storage in use (bars: yellow from 75 %, red from 90 %), CPU/GPU/SoC/LTE/NR/multimedia/board/RF PA/battery temperatures |
+| Overview | download/upload rate side by side, traffic since boot, network state (5G/4G, IPv4/IPv6), hotspot, clients, battery with its temperature, current (+ charging, - discharging) and voltage, memory and storage in use, CPU/GPU/SoC/LTE/NR/multimedia/board/RF PA temperatures; update notice with expandable release notes, Update now and Later (24 hours) |
 | Signal | technology and band (n41, B3, ...), RSRP/RSRQ/SINR with grades, PCI, ARFCN, bandwidth, neighbour cells, the subscribed rate (the network's AMBR for the data context: `AT+CGEQOSRDP` / `AT+C5GQOSRDP`, with the QCI/5QI) |
 | Traffic | today's and this month's download/upload, WAN (the modem's interface, what the carrier counts) and LAN (the bridge of USB and hotspot) apart; since boot and the last 7 days for the WAN (vnstat, kept in `/etc/vnstat`; 高级 -> 系统 clears it) |
 | SMS | the received messages, newest first, unread ones marked; open one to read it, delete it (press twice) |
@@ -107,6 +107,8 @@ and enables and starts the service.  A reinstall keeps `/etc/config/e5-infoscree
 | `brightness` | `120` | backlight level while on, 1-255 (the Device page changes and saves it) |
 | `lang` | `zh` | `zh` or `en` |
 | `donate_seen` | (unset) | `1` once the 赞赏码 has been shown at the first start after an install; after that it is under 高级 -> 关于 -> 赞赏 only |
+| `update_defer_version` | (unset) | Release whose reminder is postponed; a newer release still appears |
+| `update_defer_until` | (unset) | Unix timestamp of the next reminder, 24 hours after choosing Later |
 
 ## Debugging
 

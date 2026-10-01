@@ -37,6 +37,9 @@ for version 1 of all three.
 | Endpoint | Returns / does |
 |---|---|
 | `GET /status` | everything the pages show, polled every 2 s (below) |
+| `GET /update` | `{ current, latest, available, busy, checking, checked_at, deferred, deferred_until, error, action, result, backup }`: info screen update state |
+| `GET /update?check=1` | Same state; starts a background check when due (6 hours, retry after 10 minutes on failure) |
+| `POST /update` | `{ action: "check"\|"apply"\|"rollback"\|"defer", version }` -> update state plus `{ ok, error }`; `apply` and `defer` validate the offered version |
 | `GET /traffic` | `{ wan, lan }`, each `{ available, since, today, month, total, days[] }` with `{ rx, tx }` in bytes (vnstat; `wan` the modem's interface, `lan` the LAN bridge); `days` the last 7, `{ date: "MM-DD", rx, tx }`; `since` when counting began.  The `wan` fields are also at the top level. |
 | `GET /sms` | `{ messages: [ { id, number, text, time, state, type, unread } ] }`, newest first; `time` ISO 8601 |
 | `POST /sms-read` | all messages seen (clears the unread list) |
@@ -127,8 +130,9 @@ the charger reading is around 85 °C at room temperature and remains
 unverified, so it and those dependent estimates are marked `unverified`.
 These values are available for diagnostics but excluded from the overview's
 summaries. These flags do not modify the kernel's thermal or charging policy.
-The overview and details page show nine summaries; a Show more button in
-details expands the remaining individual zones.
+The overview puts battery temperature in its battery row and shows the other
+eight summaries together. Details shows nine summaries; a Show more button
+expands the remaining individual zones.
 
 `wifi.qr_revision` is the wireless configuration modification time. Combined
 with the SSID, security and hidden flags, it invalidates a previously drawn
@@ -343,7 +347,13 @@ path in it (under `usr/`, `www/` or `etc/`, never `etc/config` or `etc/e5-infosc
 no absolute path, no link), saves the files it replaces to
 `/etc/e5-infoscreen/update-backup.tar.gz`, unpacks it and restarts the screen; `update rollback`
 puts the saved files back.  The version is `/usr/share/e5-infoscreen/VERSION`.  On the screen:
-高级 -> 系统 -> 检查更新, then 更新到 x.y.z.  A release that needs packages or a newer system than
+高级 -> 系统 -> 检查更新, then 更新到 x.y.z. The overview also offers an update
+notice with expandable release notes, Update now and Later. Later persists
+`update_defer_version` and `update_defer_until` in `e5-infoscreen.main`: the same
+release is suppressed for 24 hours, including after a screen restart; a newer
+release is not suppressed. Checks and installs run through `update-job`, with
+one job at a time. The overview never installs without a button press and
+never wakes a blank or locked screen. A release that needs packages or a newer system than
 the image has cannot be installed this way: that takes an image update.
 
 To publish a version: raise `VERSION`, commit, `tools/make-release.sh "说明" "notes"`, and upload
