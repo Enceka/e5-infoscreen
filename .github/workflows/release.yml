@@ -2,9 +2,9 @@ name: Release
 
 # Bump .version (its `version` field) and push: this builds the package
 # (tools/make-release.sh) and opens the GitHub release v<version> with
-# e5-infoscreen-<version>.tar.gz and latest.json, marked latest -- which is what
-# the devices read (releases/latest/download/latest.json,
-# /usr/libexec/e5-infoscreen/update).
+# e5-infoscreen-<version>.tar.gz and latest.json, marked latest. Pages publishes
+# the device's default feed; this release remains the compatibility feed for
+# older installations using releases/latest/download/latest.json.
 on:
   push:
     branches: [ main ]

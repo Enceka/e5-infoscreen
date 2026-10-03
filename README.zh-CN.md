@@ -85,8 +85,11 @@ SDK 和后端上下文的说明见 [`docs/API.zh-CN.md`](docs/API.zh-CN.md)。
 和共享蜂窝语音链路。更多应用可在 LuCI 中安装（服务 → 信息屏应用：上传 `.tar.gz` 或
 `.zip`），也可在屏幕（高级 → 应用管理）卸载。应用包格式见 [`docs/API.zh-CN.md`](docs/API.zh-CN.md) 5.5 节。
 
-当前核心版本为 `1.5.1`（API 2）。实体菜单、拨号、确认和 `#` 键会转换为独立的浏览器
+当前核心版本为 `1.6.1`（API 2）。实体菜单、拨号、确认和 `#` 键会转换为独立的浏览器
 事件，未知按键不会误触当前按钮。电话数字盘按屏幕网格导航：上下沿列移动，左右沿行移动。
+
+项目主页：[enceka.github.io/infoscreen](https://enceka.github.io/infoscreen/)。页面和设备读取同一份
+`latest.json`，安装包从 Pages 下载；仍使用旧更新地址的设备可以继续从 GitHub Release 更新。
 
 ## 安装
 

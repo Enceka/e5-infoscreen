@@ -3,6 +3,6 @@
 #   version    版本号，点分，须比设备上已有的新
 #   notes_zh   发布说明（中文）
 #   notes_en   release notes (English)；留空则用中文
-version=1.6.0
-notes_zh=增加输入法插件接口：应用可以向宿主页面的输入框提交文字并处理退格，九键输入法可作为独立应用或输入服务使用。
-notes_en=Add an input-method plugin interface: apps can insert text and handle backspace in the host page's editable target, and the nine-key app can work standalone or as an input service.
+version=1.6.1
+notes_zh=新增信息屏项目主页和 Pages 更新源；页面与设备共用 latest.json，保留 GitHub Release 更新兼容旧设备。
+notes_en=Add the info screen project page and a Pages update feed; the page and devices share latest.json while GitHub Releases remains available for older devices.

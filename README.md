@@ -93,10 +93,15 @@ shared cellular voice route. Install more in LuCI (服务 -> 信息屏应用: up
 a `.tar.gz` or `.zip`), uninstall there or on the screen (高级 -> 应用管理).
 The package format: [`docs/API.md`](docs/API.md) 5.5.
 
-The current core release is `1.5.1` (API 2). Its XKB rules give the physical
+The current core release is `1.6.1` (API 2). Its XKB rules give the physical
 menu, call, confirm and `#` keys distinct browser events; unknown keys never
 activate the focused control. Phone navigation follows the visible keypad
 grid: up/down move within a column and left/right within a row.
+
+The project page is [`enceka.github.io/infoscreen`](https://enceka.github.io/infoscreen/).
+It reads the same `latest.json` as the device updater and links to the Pages-hosted
+package. The GitHub Release feed remains available for older installations that
+still use the previous update URL.
 
 ## Install
 

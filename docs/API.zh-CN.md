@@ -291,8 +291,9 @@ tar -czf nettest-1.0.tar.gz -C www/plugins nettest     # 或：cd www/plugins &&
 屏幕上：高级 → 应用管理 → 应用商店（安装、更新，按第二下确认）。
 
 **信息屏在线更新**不需要新的系统镜像：`/usr/libexec/e5-infoscreen/update` 读取发布说明
-（`e5-infoscreen.main.update_url`，默认是 GitHub 最新发布的 `latest.json`：`{ version, url, sha256, size, notes }`），
-`update apply` 下载更新包（本仓库的 `root/`，由 `tools/make-release.sh` 生成），核对大小、SHA-256 和包里每一个路径
+（`e5-infoscreen.main.update_url`，默认是 `https://enceka.github.io/infoscreen/latest.json`：
+`{ version, url, sha256, size, notes }`），`update apply` 下载更新包（本仓库的 `root/`，由
+`tools/make-release.sh` 生成），核对大小、SHA-256 和包里每一个路径
 （只能在 `usr/`、`www/`、`etc/` 下，不能碰 `etc/config` 和 `etc/e5-infoscreen`；不能有 `..`、绝对路径、链接），
 先把要被替换的文件存到 `/etc/e5-infoscreen/update-backup.tar.gz`，再解包并重启信息屏；`update rollback` 恢复备份。
 版本号在 `/usr/share/e5-infoscreen/VERSION`。屏幕上：高级 → 系统 → 检查更新，然后“更新到 x.y.z”。
@@ -302,8 +303,9 @@ tar -czf nettest-1.0.tar.gz -C www/plugins nettest     # 或：cd www/plugins &&
 后台检查和安装通过 `update-job` 互斥执行。提示不自动安装，不点亮熄灭或锁定的屏幕。
 需要新软件包或更新系统的版本不能这样装，要更新系统镜像。
 
-发布新版本：提高 `VERSION` 并提交，运行 `tools/make-release.sh "说明" "notes"`，把
-`dist/e5-infoscreen-<版本>.tar.gz` 和 `dist/latest.json` 上传到 GitHub 发布 `v<版本>`，并标为最新。
+发布新版本：提高 `VERSION` 并推送。CI 会自动生成安装包和
+`https://enceka.github.io/infoscreen/latest.json`，同时把同一份安装包和 JSON 上传到 GitHub
+的 `v<版本>` 发布中，让仍使用旧更新地址的设备继续兼容。
 
 ## 应用通知（API 2，信息屏 1.5.0 起）
 

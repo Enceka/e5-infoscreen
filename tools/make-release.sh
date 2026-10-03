@@ -7,8 +7,9 @@
 # (its `version`, `notes_zh` and `notes_en` fields); the arguments override the
 # notes.  Raising .version is what the release workflow watches
 # (.github/workflows/release.yml), which builds this and opens the GitHub
-# release v<VERSION> of Enceka/e5-infoscreen, marked latest -- the devices read
-# releases/latest/download/latest.json.  Without .version the version is
+# release v<VERSION> of Enceka/e5-infoscreen, marked latest. The Pages workflow
+# copies the package and rewrites the feed URL for the device's default endpoint;
+# this release feed remains available for older installations. Without .version the version is
 # root/usr/share/e5-infoscreen/VERSION, raised by hand first.  Either way the
 # package is root/ as it is in git, owned by root.
 set -eu

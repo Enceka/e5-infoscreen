@@ -365,8 +365,9 @@ that it holds the app the index said, then installs it as any package (5.5).  On
 高级 -> 应用管理 -> 应用商店 (install, update, a second press confirms).
 
 **The screen's own update** needs no new system image: `/usr/libexec/e5-infoscreen/update`
-reads a release description (`e5-infoscreen.main.update_url`, default the latest GitHub release's
-`latest.json`: `{ version, url, sha256, size, notes }`), and `update apply` downloads the package
+reads a release description (`e5-infoscreen.main.update_url`, default
+`https://enceka.github.io/infoscreen/latest.json`: `{ version, url, sha256, size, notes }`), and
+`update apply` downloads the package
 (this repository's `root/`, made by `tools/make-release.sh`), checks its size, SHA-256 and every
 path in it (under `usr/`, `www/` or `etc/`, never `etc/config` or `etc/e5-infoscreen`; no `..`,
 no absolute path, no link), saves the files it replaces to
@@ -381,9 +382,9 @@ one job at a time. The overview never installs without a button press and
 never wakes a blank or locked screen. A release that needs packages or a newer system than
 the image has cannot be installed this way: that takes an image update.
 
-To publish a version: raise `VERSION`, commit, `tools/make-release.sh "说明" "notes"`, and upload
-`dist/e5-infoscreen-<version>.tar.gz` and `dist/latest.json` to a GitHub release `v<version>`
-marked latest.
+To publish a version: raise `VERSION`, commit and push. CI makes the package and publishes the
+Pages feed at `https://enceka.github.io/infoscreen/latest.json`; it also uploads the same package
+and JSON to the GitHub release `v<version>` so installations using the old update URL keep working.
 
 ## Application notifications (API 2, core 1.5.0+)
 

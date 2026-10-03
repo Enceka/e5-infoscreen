@@ -21,7 +21,7 @@ const www = path.resolve(__dirname, '../root/usr/share/e5-infoscreen/www');
    if (p === '/api/plugins') return route.fulfill({ json: { plugins: [
     { id: 'fixture', api_version: 2, name: { zh: '测试', en: 'Test' }, entry: 'index.html', input_method: true }
    ] } });
-   if (p === '/api/update') return route.fulfill({ json: { current: '1.6.0', available: false } });
+   if (p === '/api/update') return route.fulfill({ json: { current: '1.6.1', available: false } });
    return route.fulfill({ json: { ok: true, categories: [] } });
   }
   if (p.startsWith('/plugins/fixture/')) return route.fulfill({ contentType: 'text/html', body:
