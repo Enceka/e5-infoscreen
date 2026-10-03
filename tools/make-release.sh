@@ -51,7 +51,7 @@ python3 - "$V" "$SUM" "$SIZE" "$ZH" "$EN" > dist/latest.json <<'PY'
 import json, sys
 v, s, n, zh, en = sys.argv[1:6]
 print(json.dumps({'version': v,
-                  'url': f'https://github.com/Enceka/e5-infoscreen/releases/download/v{v}/e5-infoscreen-{v}.tar.gz',
+                  'url': f'https://github.com/Enceka/infoscreen/releases/download/v{v}/e5-infoscreen-{v}.tar.gz',
                   'sha256': s, 'size': int(n), 'notes': {'zh': zh, 'en': en or zh}}, ensure_ascii=False, indent=1))
 PY
 echo "$P ($SIZE bytes), dist/latest.json: upload both to the release v$V"
