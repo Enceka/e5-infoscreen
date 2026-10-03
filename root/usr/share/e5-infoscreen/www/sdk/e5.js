@@ -17,8 +17,9 @@
 	const m = /^\/plugins\/([a-z0-9][a-z0-9_-]*)\//.exec(location.pathname);
 	const id = m ? m[1] : null;
 
-	let keyFn = null, backFn = null, langFn = null;
+	let keyFn = null, backFn = null, langFn = null, inputTargetFn = null, inputResultFn = null;
 	let capturePower = false, inputBlocked = false;
+	let inputAvailable = false;
 	let blank = false;
 	let lastBack = 0;
 	let touch = true;            // the host's 触摸 setting
@@ -90,11 +91,18 @@
 			blank = !!msg.blank;
 			touch = msg.touch !== false;
 			e5.tzOffset = +msg.tz_offset || 0;
+			e5.inputAvailable = msg.input_available === true;
+			if (inputTargetFn) inputTargetFn(e5.inputAvailable);
 			if (msg.lang && msg.lang != e5.lang) {
 				e5.lang = msg.lang;
 				if (langFn) langFn(e5.lang);
 			}
 		}
+		if (msg.e5 == 'input-target') {
+			e5.inputAvailable = msg.available === true;
+			if (inputTargetFn) inputTargetFn(e5.inputAvailable);
+		}
+		if (msg.e5 == 'input-result' && inputResultFn) inputResultFn(msg);
 	});
 
 	async function call(url, opts = {}) {
@@ -133,6 +141,22 @@
 		onKey: (fn) => { keyFn = fn; },
 		onBack: (fn) => { backFn = fn; },
 		onLang: (fn) => { langFn = fn; },
+		onInputTarget: (fn) => { inputTargetFn = fn; },
+		/* Insert into the host page's focused input target.  Only a manifest
+		   with input_method: true may use these messages; a false return means
+		   there is no target at the moment. */
+		input: (text) => {
+			if (!e5.inputAvailable) return false;
+			send({ e5: 'input', action: 'insert', text: String(text ?? '') });
+			return true;
+		},
+		inputBackspace: () => {
+			if (!e5.inputAvailable) return false;
+			send({ e5: 'input', action: 'backspace' });
+			return true;
+		},
+		onInputResult: (fn) => { inputResultFn = fn; },
+		inputAvailable: false,
 		capturePower: (on) => { capturePower = !!on; send({ e5: 'capture-power', on: capturePower }); },
 		notify: (notice) => call(`/api/plugins/${id}/_notify`, { body: notice }),
 		clearNotification: (idValue) => call(`/api/plugins/${id}/_notify`, { body: { id: idValue, clear: true } }),

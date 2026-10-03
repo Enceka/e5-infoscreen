@@ -3,6 +3,6 @@
 #   version    版本号，点分，须比设备上已有的新
 #   notes_zh   发布说明（中文）
 #   notes_en   release notes (English)；留空则用中文
-version=1.5.1
-notes_zh=按实测修正实体菜单、拨号、确认与 # 键的会话映射；未知按键不再误触确认，菜单返回应用列表，SDK 提供独立拨号键事件。
-notes_en=Give menu, call, confirm and # distinct session mappings; unknown keys no longer confirm controls, menu returns to applications, and the SDK exposes a separate call key.
+version=1.6.0
+notes_zh=增加输入法插件接口：应用可以向宿主页面的输入框提交文字并处理退格，九键输入法可作为独立应用或输入服务使用。
+notes_en=Add an input-method plugin interface: apps can insert text and handle backspace in the host page's editable target, and the nine-key app can work standalone or as an input service.

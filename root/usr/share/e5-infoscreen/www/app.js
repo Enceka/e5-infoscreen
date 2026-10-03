@@ -1585,6 +1585,101 @@ let apps = null;
 let appOpen = null;               // the manifest of the open plugin
 let appKeepAwake = false;
 let appCapturePower = false;
+let inputTarget = null;           // the last host input focused before an app opened
+
+function isInputTarget(el) {
+	if (!el || !el.tagName) return !!el?.isContentEditable;
+	if (el.isContentEditable) return true;
+	if (el.tagName != 'INPUT' && el.tagName != 'TEXTAREA') return false;
+	const type = (el.type ?? 'text').toLowerCase();
+	return ![ 'button', 'checkbox', 'file', 'hidden', 'image', 'radio', 'range', 'reset', 'submit' ].includes(type)
+		&& !el.disabled && !el.readOnly;
+}
+
+function currentInputTarget() {
+	if (!isInputTarget(inputTarget) || !document.documentElement.contains(inputTarget) || inputTarget.hidden) return null;
+	if (inputTarget.getClientRects && !inputTarget.getClientRects().length) return null;
+	return inputTarget;
+}
+
+function notifyInputTarget() {
+	if (appOpen) toApp({ e5: 'input-target', available: !!currentInputTarget() });
+}
+
+function inputEvent(el, inputType, data) {
+	let event;
+	try { event = new InputEvent('input', { bubbles: true, inputType, data }); }
+	catch (_) { event = new Event('input', { bubbles: true }); }
+	el.dispatchEvent(event);
+}
+
+function insertIntoInput(el, text) {
+	if (!text) return true;
+	if (el.tagName == 'INPUT' || el.tagName == 'TEXTAREA') {
+		const value = String(el.value ?? ''), start = Number.isInteger(el.selectionStart) ? el.selectionStart : value.length;
+		const end = Number.isInteger(el.selectionEnd) ? el.selectionEnd : start;
+		const room = el.maxLength > 0 ? Math.max(0, el.maxLength - value.length + end - start) : text.length;
+		const added = text.slice(0, room);
+		el.value = value.slice(0, start) + added + value.slice(end);
+		const caret = start + added.length;
+		if (el.setSelectionRange) el.setSelectionRange(caret, caret);
+		inputEvent(el, 'insertText', added);
+		return true;
+	}
+	if (!el.isContentEditable) return false;
+	const selection = window.getSelection();
+	if (!selection) return false;
+	const range = selection.rangeCount && el.contains(selection.anchorNode)
+		? selection.getRangeAt(0) : document.createRange();
+	if (!range.commonAncestorContainer || !el.contains(range.commonAncestorContainer)) range.selectNodeContents(el);
+	range.deleteContents();
+	range.insertNode(document.createTextNode(text));
+	range.collapse(false);
+	selection.removeAllRanges(); selection.addRange(range);
+	inputEvent(el, 'insertText', text);
+	return true;
+}
+
+function backspaceInput(el) {
+	if (el.tagName == 'INPUT' || el.tagName == 'TEXTAREA') {
+		const value = String(el.value ?? ''), start = Number.isInteger(el.selectionStart) ? el.selectionStart : value.length;
+		const end = Number.isInteger(el.selectionEnd) ? el.selectionEnd : start;
+		if (!start && !end) return true;
+		let from = start, to = end;
+		if (from == to) {
+			const before = [...value.slice(0, from)];
+			if (!before.length) return true;
+			from -= before[before.length - 1].length;
+		}
+		el.value = value.slice(0, from) + value.slice(to);
+		if (el.setSelectionRange) el.setSelectionRange(from, from);
+		inputEvent(el, 'deleteContentBackward', null);
+		return true;
+	}
+	if (el.isContentEditable && document.execCommand) {
+		document.execCommand('delete');
+		inputEvent(el, 'deleteContentBackward', null);
+		return true;
+	}
+	return false;
+}
+
+function pluginInput(msg) {
+	if (!appOpen?.input_method) return;
+	const target = currentInputTarget();
+	let ok = !!target;
+	if (ok && msg.action == 'insert') ok = typeof msg.text == 'string' && msg.text.length <= 4096 && insertIntoInput(target, msg.text);
+	else if (ok && msg.action == 'backspace') ok = backspaceInput(target);
+	else if (msg.action != 'insert' && msg.action != 'backspace') ok = false;
+	toApp({ e5: 'input-result', ok, error: ok ? undefined : (target ? 'input target rejected the operation' : 'no input target') });
+}
+
+document.addEventListener('focusin', (event) => {
+	if (isInputTarget(event.target)) {
+		inputTarget = event.target;
+		notifyInputTarget();
+	}
+});
 
 async function loadApps() {
 	const r = await fetch('/api/plugins', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
@@ -1655,8 +1750,9 @@ window.addEventListener('message', (e) => {
 		resetIdle();
 		break;
 	case 'capture-power': appCapturePower = !!m.on; break;
+	case 'input': pluginInput(m); break;
 	case 'ready':
-		toApp({ e5: 'hello', lang, api_version: 2, blank, tz_offset: last?.tz_offset ?? 0, touch: !touchOff() });
+		toApp({ e5: 'hello', lang, api_version: 2, blank, tz_offset: last?.tz_offset ?? 0, touch: !touchOff(), input_available: !!currentInputTarget() });
 		break;
 	}
 });

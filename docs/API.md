@@ -217,6 +217,7 @@ each time it is opened, the settings menu each time it is loaded.
 | `version`, `description` | shown in the Apps list |
 | `entry` | the page, relative to the directory; default `index.html` |
 | `order` | position in the Apps list, low first; default 50 |
+| `input_method` | `true`: the app may send committed text and backspace actions to the host's last focused `input`, `textarea` or `contenteditable` target through the SDK. Use this only for an input method; the host ignores these messages from other apps. |
 | `settings` | items (section 3) of type `toggle`, `choice` or `number`, each stored in the uci option `uci` (`config.section.option`), with `default` when it is unset.  They appear as a category of their own in 高级.  Use a config named `e5-plugin-<id>`; it is created on the first change. |
 
 ### 5.3 Frontend
@@ -237,6 +238,11 @@ footer below: about 320×424 CSS pixels).  Load the SDK first:
 | `e5.onKey(fn)` | `fn({ kind, key, code, repeat })` for each key; return `true` when taken |
 | `e5.onBack(fn)` | `fn()` on back when `onKey` did not take it; return `true` to stay, anything else closes the plugin |
 | `e5.onLang(fn)` | the screen's language changed, `fn(lang)` |
+| `e5.input(text)` | send committed text to the host's last focused editable target; returns `true` when the SDK currently knows a target is available |
+| `e5.inputBackspace()` | delete one character or the current selection in that target; returns `true` when a target is available |
+| `e5.inputAvailable` | `true` when the host currently has an editable target |
+| `e5.onInputTarget(fn)` | `fn(available)` when the host target becomes available or unavailable |
+| `e5.onInputResult(fn)` | `fn({ ok, error })` after the host handles an input operation |
 | `e5.toast(text)` | a short message over the screen |
 | `e5.keepAwake(on)` | `true`: the screen does not go dark while the plugin is open (a timer, a test running); set it back to `false` |
 | `e5.exit()` | close the plugin |
@@ -256,11 +262,23 @@ application. Touch works as in any page. Use large text and a dark
 background (the screen's own look: `#0b0e13`, cards `#161b23`, text `#e8ecf2`);
 the fonts are Noto Sans CJK SC and DejaVu Sans.
 
+An input-method app is opened with the host page's last focused editable target
+remembered. `e5.input()` inserts at that target's selection and dispatches a
+standard `input` event, so the page's own validation and bindings continue to
+work. The target is an `input`, `textarea` or `contenteditable` element that is
+not disabled or read-only. `e5.inputAvailable` and `e5.onInputTarget()` expose
+whether one is currently available. The host accepts these operations only
+from a manifest with `input_method: true`, and limits one insertion to 4096
+characters.
+
 Without the SDK, the protocol is `postMessage` with the parent frame:
 plugin -> host `{ e5: "ready" }`, `{ e5: "key", kind, key, code, keyCode, repeat }`
 (every key, so the host can wake the screen and reset its idle timer),
-`{ e5: "exit" }`, `{ e5: "toast", text }`, `{ e5: "keep-awake", on }`;
-host -> plugin `{ e5: "hello", lang, api_version, blank, tz_offset, touch }`, `{ e5: "blank", on }`, `{ e5: "touch", on }`.
+`{ e5: "exit" }`, `{ e5: "toast", text }`, `{ e5: "keep-awake", on }`,
+`{ e5: "input", action: "insert", text }` or `{ e5: "input", action: "backspace" }`;
+host -> plugin `{ e5: "hello", lang, api_version, blank, tz_offset, touch, input_available }`,
+`{ e5: "input-target", available }`, `{ e5: "input-result", ok, error }`,
+`{ e5: "blank", on }`, `{ e5: "touch", on }`.
 
 ### 5.4 Backend
 
@@ -389,5 +407,5 @@ the installed plugin, and does not answer calls or perform other plugin actions.
 API 2 also provides `e5.capturePower(on)` for an app that handles the existing
 power/lock event during an operation; it does not alter hardware key mappings.
 Core-owned notification overlays block input to the underlying plugin until
-dismissed. Apps using these methods must declare `api_version: 2`; API 1 apps
-continue to work.
+dismissed. Input-method apps using `e5.input()` must declare `api_version: 2`;
+API 1 apps continue to work.

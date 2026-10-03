@@ -19,9 +19,9 @@ const www = path.resolve(__dirname, '../root/usr/share/e5-infoscreen/www');
     sms: { unread: [] }, notifications: []
    } });
    if (p === '/api/plugins') return route.fulfill({ json: { plugins: [
-    { id: 'fixture', api_version: 2, name: { zh: '测试', en: 'Test' }, entry: 'index.html' }
+    { id: 'fixture', api_version: 2, name: { zh: '测试', en: 'Test' }, entry: 'index.html', input_method: true }
    ] } });
-   if (p === '/api/update') return route.fulfill({ json: { current: '1.5.1', available: false } });
+   if (p === '/api/update') return route.fulfill({ json: { current: '1.6.0', available: false } });
    return route.fulfill({ json: { ok: true, categories: [] } });
   }
   if (p.startsWith('/plugins/fixture/')) return route.fulfill({ contentType: 'text/html', body:
@@ -39,6 +39,8 @@ const www = path.resolve(__dirname, '../root/usr/share/e5-infoscreen/www');
  await page.goto('http://screen.test/index.html');
  await page.waitForTimeout(500);
  await page.evaluate(() => {
+  const input = document.createElement('input'); input.id = 'probe-input'; window.inputEvents = 0;
+  input.addEventListener('input', () => inputEvents++); document.body.append(input); input.focus();
   const b = document.createElement('button'); b.id = 'probe'; window.clicks = 0;
   b.onclick = () => clicks++; document.body.append(b); b.focus();
  });
@@ -53,6 +55,11 @@ const www = path.resolve(__dirname, '../root/usr/share/e5-infoscreen/www');
  await page.waitForSelector('#app-frame:not([hidden])');
  const frame = page.frames().find(f => f.url().includes('/plugins/fixture/'));
  await frame.waitForFunction(() => !!window.e5);
+ assert.equal(await frame.evaluate(() => e5.input('你好')), true, 'input target was not advertised');
+ assert.equal(await page.locator('#probe-input').inputValue(), '你好');
+ assert.equal(await page.evaluate(() => inputEvents), 1, 'input event was not dispatched');
+ assert.equal(await frame.evaluate(() => e5.inputBackspace()), true);
+ assert.equal(await page.locator('#probe-input').inputValue(), '你');
  for (const [k, c] of [['Unidentified', 0], ['ArrowUp', 38], ['ArrowDown', 40], ['F13', 124], ['#', 51], ['Enter', 13], ['F1', 112]]) await key(frame, k, c);
  assert.deepEqual(await frame.evaluate(() => keys.map(k => k.kind)), ['other', 'up', 'down', 'call', 'digit', 'ok', 'other']);
  assert.equal(await frame.evaluate(() => keys[4].key), '#');

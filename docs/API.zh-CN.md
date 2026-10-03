@@ -154,6 +154,7 @@ manifest 的 `id`。复制目录即安装，删除目录即卸载，不需要重
 | `version`、`description` | 显示在“应用”列表里 |
 | `entry` | 页面文件，相对于插件目录；默认 `index.html` |
 | `order` | 在“应用”列表中的位置，小的在前；默认 50 |
+| `input_method` | `true`：应用可以通过 SDK 把已确认的文字和退格操作发送给宿主最近聚焦的 `input`、`textarea` 或 `contenteditable`；只有输入法应用应设置此项，宿主会忽略其他应用的这些消息。 |
 | `settings` | 设置项（第 3 节），类型限 `toggle`、`choice`、`number`，每项存在 uci 选项 `uci`（`配置.节.选项`）里，未设置时用 `default`。它们在“高级”里单独成为一个分类。配置名请用 `e5-plugin-<id>`，第一次修改时会自动创建。 |
 
 ### 5.3 前端
@@ -174,6 +175,11 @@ manifest 的 `id`。复制目录即安装，删除目录即卸载，不需要重
 | `e5.onKey(fn)` | 每次按键调用 `fn({ kind, key, code, repeat })`；返回 `true` 表示已处理 |
 | `e5.onBack(fn)` | `onKey` 没有处理返回键时调用 `fn()`；返回 `true` 表示留在插件里，其他情况关闭插件 |
 | `e5.onLang(fn)` | 屏幕语言改变时调用 `fn(lang)` |
+| `e5.input(text)` | 把已确认的文字插入宿主最近聚焦的可编辑目标；当前知道有目标时返回 `true` |
+| `e5.inputBackspace()` | 在该目标删除一个字符或当前选区；当前有目标时返回 `true` |
+| `e5.inputAvailable` | 宿主当前有可编辑目标时为 `true` |
+| `e5.onInputTarget(fn)` | 宿主目标可用性改变时调用 `fn(available)` |
+| `e5.onInputResult(fn)` | 宿主处理输入操作后调用 `fn({ ok, error })` |
 | `e5.toast(文字)` | 在屏幕上显示一条短消息 |
 | `e5.keepAwake(on)` | `true`：插件打开期间屏幕不自动熄灭（计时器、测试进行中等）；结束后设回 `false` |
 | `e5.exit()` | 关闭插件 |
@@ -191,11 +197,20 @@ manifest 的 `id`。复制目录即安装，删除目录即卸载，不需要重
 一样使用。请用大字号和深色背景（与信息屏一致：背景 `#0b0e13`、卡片 `#161b23`、文字
 `#e8ecf2`）；可用字体为 Noto Sans CJK SC 和 DejaVu Sans。
 
+输入法应用打开时，主程序会记住页面中最近聚焦的可编辑目标。
+`e5.input()` 按目标当前选区插入文字，并派发标准 `input` 事件，因此页面自己的校验和绑定仍会执行。
+目标可以是未禁用、未只读的 `input`、`textarea` 或 `contenteditable`。
+`e5.inputAvailable` 和 `e5.onInputTarget()` 表示当前是否有目标；宿主只接受
+manifest 设置 `input_method: true` 的应用发来的操作，每次插入最多 4096 个字符。
+
 不用 SDK 时，协议是与父框架之间的 `postMessage`：
 插件 → 主程序：`{ e5: "ready" }`、`{ e5: "key", kind, key, code, keyCode, repeat }`（每次按键
 都要发，主程序据此点亮屏幕、重置息屏计时）、`{ e5: "exit" }`、`{ e5: "toast", text }`、
-`{ e5: "keep-awake", on }`；
-主程序 → 插件：`{ e5: "hello", lang, api_version, blank, tz_offset, touch }`、`{ e5: "blank", on }`、`{ e5: "touch", on }`。
+`{ e5: "keep-awake", on }`、`{ e5: "input", action: "insert", text }` 或
+`{ e5: "input", action: "backspace" }`；
+主程序 → 插件：`{ e5: "hello", lang, api_version, blank, tz_offset, touch, input_available }`、
+`{ e5: "input-target", available }`、`{ e5: "input-result", ok, error }`、
+`{ e5: "blank", on }`、`{ e5: "touch", on }`。
 
 ### 5.4 后端
 
@@ -306,4 +321,4 @@ body 只显示文本，wake 请求亮屏，ttl 默认 60 秒、最大 86400 秒�
 通知覆盖层显示时，底下的插件不会收到操作输入。
 
 `e5.capturePower(on)` 允许应用在操作期间接收原有锁屏/电源事件，不改变物理
-按键映射。使用新方法的应用声明 `api_version: 2`，原 API 1 应用保持兼容。
+按键映射。输入法使用 `e5.input()` 时必须声明 `api_version: 2`，原 API 1 应用保持兼容。
