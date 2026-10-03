@@ -181,7 +181,13 @@ manifest 的 `id`。复制目录即安装，删除目录即卸载，不需要重
 | `e5.t({ zh, en })` | 按屏幕语言取文字 |
 | `e5.tzOffset`、`e5.time(ms)` | 设备相对 UTC 的偏移（秒）；把时间格式化为设备时区的 `HH:MM:SS`。OpenWrt 上 WebKit 没有时区数据，`Date` 的本地时间就是 UTC，请用这两个（或 `/status` 里的 `tz_offset`）。 |
 
-屏幕熄灭时 SDK 会吞掉按键（由主程序点亮屏幕）；电源键始终归主程序。触摸和普通网页
+按键类型为 `left`、`right`、`up`、`down`、`ok`、`back`、`power`、`menu`、`call`、
+`digit` 和 `other`。E5 会话将实体拨号键转换为 `F13` 和 `kind: "call"`，# 键转换为
+字面量 `#` 和 `kind: "digit"`。未知按键保持为 `other`，不会触发确认。菜单键由主程序
+处理，返回应用列表，不调用插件的按键处理器。
+
+屏幕熄灭时 SDK 会吞掉按键（由主程序点亮屏幕）；电源键归主程序，当前应用可通过
+`e5.capturePower(true)` 接管它。触摸和普通网页
 一样使用。请用大字号和深色背景（与信息屏一致：背景 `#0b0e13`、卡片 `#161b23`、文字
 `#e8ecf2`）；可用字体为 Noto Sans CJK SC 和 DejaVu Sans。
 

@@ -244,8 +244,15 @@ footer below: about 320×424 CSS pixels).  Load the SDK first:
 | `e5.t({ zh, en })` | the text in the screen's language |
 | `e5.tzOffset`, `e5.time(ms)` | the device's offset from UTC (s); a time as `HH:MM:SS` in the device's zone.  WebKit has no zoneinfo on OpenWrt, so `Date`'s local time is UTC: use these (or `tz_offset` from `/status`). |
 
+Key kinds are `left`, `right`, `up`, `down`, `ok`, `back`, `power`, `menu`,
+`call`, `digit` and `other`. The E5 session maps the physical call key to `F13`
+and `kind: "call"`, and # to a literal `#` with `kind: "digit"`. Unknown keys
+remain `other`; they never act as confirmation. Menu is handled by the host
+and returns to the application list without invoking the plugin key handler.
+
 While the screen is dark the SDK swallows keys (the host wakes the screen); the
-power key is the host's.  Touch works as in any page.  Use large text and a dark
+power key is the host's unless `e5.capturePower(true)` is enabled by the active
+application. Touch works as in any page. Use large text and a dark
 background (the screen's own look: `#0b0e13`, cards `#161b23`, text `#e8ecf2`);
 the fonts are Noto Sans CJK SC and DejaVu Sans.
 

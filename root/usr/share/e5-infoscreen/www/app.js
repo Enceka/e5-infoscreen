@@ -713,13 +713,13 @@ function moveFocus(dir) {
 	list[i].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
-// the keypad, by what WebKit reports for it (measured with the key log,
-// /api/key).  The confirm key is KEY_SELECT, which WebKit has no name for: it
-// arrives as "Unidentified" with keyCode 0.  The power key is "PowerOff"; the
-// side key is F1.  The volume keys change the speaker volume (volumeKey).
+// The session's E5 XKB map gives menu, call, confirm and # distinct names.
+// Unidentified is never confirmation: WPE uses it for several evdev keys.
+// GPIO F1 remains the hotspot side key; F13 is the keypad's call key.
 function keyKind(e) {
 	const k = e.key, c = e.keyCode;
-	if (k == 'Unidentified' && c == 0) return 'ok';
+	if (k == 'ContextMenu' || k == 'Menu') return 'menu';
+	if (k == 'F13' || k == 'Phone' || k == 'PickupPhone' || k == 'Call') return 'call';
 	if (k == 'F1' || c == 112) return 'hotspot';
 	if (k == 'AudioVolumeUp' || c == 175) return 'volup';
 	if (k == 'AudioVolumeDown' || c == 174) return 'voldown';
@@ -767,6 +767,10 @@ document.addEventListener('keydown', (e) => {
 	if (!$('notification-card').hidden && notificationKey(kind)) return;
 	if (picShown) {
 		picClose();
+		return;
+	}
+	if (kind == 'menu') {
+		if (!e.repeat) { if (appOpen) closeApp(); showPage(P.apps); }
 		return;
 	}
 	if (appOpen) {                       // (the plugin's frame lost the focus)
@@ -1641,6 +1645,7 @@ window.addEventListener('message', (e) => {
 		if (keyLock(m.kind == 'power' && !m.repeat, m.key == '*')) return;
 		if (blank) { setBlank(false); toApp({ e5: 'blank', on: false }); return; }
 		resetIdle();
+		if (m.kind == 'menu' && !m.repeat) { closeApp(); showPage(P.apps); return; }
 		if (m.kind == 'power' && !m.repeat) { setBlank(true); toApp({ e5: 'blank', on: true }); }
 		break;
 	case 'exit': closeApp(); break;

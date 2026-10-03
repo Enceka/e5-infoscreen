@@ -61,13 +61,20 @@ Measured on the device (WebKit's names in brackets):
 |---|---|
 | left / right | previous / next page |
 | up / down | move between the buttons of a page, or scroll it |
-| confirm (`KEY_SELECT`, "Unidentified") | press the focused button |
+| confirm (`KEY_SELECT`, `Enter`) | press the focused button |
+| menu (`KEY_MENU`, `ContextMenu`) | open the application list; leave an open application |
+| call (`KEY_PHONE`, `F13`) | the open application receives `kind: "call"`; Phone dials or answers |
+| # (`KEY_NUMERIC_POUND`, `#`) | a literal # in an application, separate from call and confirm |
 | back (`KEY_BACK` + BackSpace) | close the message, leave the button, or go to the first page |
 | 1-9 | go to that page |
 | side key (`F1`) | the hotspot page (to show the QR code) |
 | power (`PowerOff`) | screen off |
 | power, then `*` within 2 s | key lock: the screen stays dark -- no key, touch or new SMS lights it (the motor pulses once); power, then `*` again unlocks and lights it.  The volume keys still work |
 | volume up / down | the speaker volume (16 levels, 0 mute), silently, with the level over the page; works with the screen dark, without lighting it |
+
+The session uses the E5 XKB rules to translate these keys before WPE sees them.
+The kernel evdev map stays intact, including the hangup/power key. Unknown keys
+never confirm a control. Phone takes the power key only while a call exists.
 
 ## Plugins
 

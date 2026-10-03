@@ -3,7 +3,11 @@
 export XDG_RUNTIME_DIR=/tmp/run/e5-infoscreen
 mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
 export LIBSEAT_BACKEND=seatd
+export XKB_CONFIG_EXTRA_PATH=/usr/share/e5-infoscreen/xkb
 export XKB_DEFAULT_LAYOUT=us
+# E5 phone keys need distinct names in WPE; keep the evdev keycodes intact.
+export XKB_DEFAULT_RULES=e5
+export XKB_DEFAULT_OPTIONS=e5:keypad
 # the page formats times itself: WebKit needs the device's time zone (OpenWrt
 # keeps it in /etc/TZ, a POSIX TZ string, written from uci system.timezone)
 TZ=$(cat /etc/TZ 2>/dev/null)

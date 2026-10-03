@@ -5,8 +5,8 @@
  *
  * A plugin's page runs in a frame over the info screen's pages.  Keys go to
  * the frame; this script turns them into the same kinds the host uses (left,
- * right, up, down, ok, back, power, digit, other), hands them to the plugin,
- * and tells the host about each one -- the host keeps the power key, the
+ * right, up, down, ok, back, power, call, digit, other), hands them to the plugin,
+ * and tells the host about each one -- the host keeps menu, the power key, the
  * screen's idle timer and waking the screen.  "back" that the plugin does not
  * take closes it.
  */
@@ -40,14 +40,15 @@
 
 	function kindOf(e) {
 		const k = e.key, c = e.keyCode;
-		if (k == 'Unidentified' && c == 0) return 'ok';          // the keypad's confirm key
+		if (k == 'ContextMenu' || k == 'Menu') return 'menu';
+		if (k == 'F13' || k == 'Phone' || k == 'PickupPhone' || k == 'Call') return 'call';
 		if (k == 'ArrowLeft' || c == 37) return 'left';
 		if (k == 'ArrowRight' || c == 39) return 'right';
 		if (k == 'ArrowUp' || c == 38) return 'up';
 		if (k == 'ArrowDown' || c == 40) return 'down';
-		if (k == 'Enter' || k == 'Select' || c == 13) return 'ok';
+		if (k == 'Enter' || k == 'Select' || k == 'Accept' || c == 13) return 'ok';
 		if (k == 'BrowserBack' || k == 'GoBack' || k == 'Backspace' || k == 'Escape' || c == 8 || c == 27 || c == 166) return 'back';
-		if (k == 'PowerOff' || k == 'Power') return 'power';
+		if (k == 'PowerOff' || k == 'Power' || k == 'Standby' || k == 'Sleep') return 'power';
 		if (k.length == 1 && ((k >= '0' && k <= '9') || k == '*' || k == '#')) return 'digit';
 		return 'other';
 	}
@@ -55,8 +56,8 @@
 	document.addEventListener('keydown', (e) => {
 		const kind = kindOf(e);
 		send({ e5: 'key', kind, key: e.key, code: e.code, keyCode: e.keyCode, repeat: e.repeat });
-		// while the screen is dark the host only wakes it; power is the host's
-		if (blank || inputBlocked || (kind == 'power' && !capturePower)) {
+		// Dark screen: wake only. Menu belongs to the host, as does uncaptured power.
+		if (blank || inputBlocked || kind == 'menu' || (kind == 'power' && !capturePower)) {
 			e.preventDefault();
 			return;
 		}

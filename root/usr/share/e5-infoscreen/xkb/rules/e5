@@ -1,0 +1,4 @@
+// Keep the distribution rules; append the E5 overrides after inet(evdev).
+! include %S/evdev
+! option = symbols
+  e5:keypad = +e5(keypad)

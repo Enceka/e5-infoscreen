@@ -3,6 +3,6 @@
 #   version    版本号，点分，须比设备上已有的新
 #   notes_zh   发布说明（中文）
 #   notes_en   release notes (English)；留空则用中文
-version=1.5.0
-notes_zh=增加通用应用通知 API：提交、撤销、后台只读通知、统一弹窗及亮屏；插件 API 2 向后兼容 API 1。
-notes_en=Add generic application notifications: submit, clear, read-only background providers, shared alerts and wake control; plugin API 2 remains compatible with API 1.
+version=1.5.1
+notes_zh=按实测修正实体菜单、拨号、确认与 # 键的会话映射；未知按键不再误触确认，菜单返回应用列表，SDK 提供独立拨号键事件。
+notes_en=Give menu, call, confirm and # distinct session mappings; unknown keys no longer confirm controls, menu returns to applications, and the SDK exposes a separate call key.

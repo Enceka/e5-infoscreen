@@ -1,0 +1,13 @@
+// Linux evdev codes + 8. Physical positions verified on the E5 keypad.
+partial alphanumeric_keys
+xkb_symbols "keypad" {
+    // KEY_MENU (139), matrix index 24.
+    replace key <I147> { [ Menu ] };
+    // WPE exposes XF86Phone as Unidentified. F13 is the session's call key.
+    // KEY_PHONE (169), matrix index 25; this is distinct from GPIO F1.
+    replace key <I177> { [ F13 ] };
+    // KEY_SELECT (353), matrix index 8: submit a focused control.
+    replace key <I361> { [ Return ] };
+    // KEY_NUMERIC_POUND (523), matrix index 4: a literal #, without Shift.
+    replace key <I531> { type[Group1] = "ONE_LEVEL", [ numbersign ] };
+};
