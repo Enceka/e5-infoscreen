@@ -78,9 +78,9 @@ function renderStatistics() {
 	$('download-count').textContent = infoscreenStatistics.count('download:core') ?? '—';
 }
 document.addEventListener('infoscreen-statistics', renderStatistics);
-document.getElementById('download').addEventListener('click', () => { if (latest) infoscreenStatistics.recordDownload(); });
+document.getElementById('download').addEventListener('click', () => { if (latest && window.infoscreenStatistics) infoscreenStatistics.recordDownload(); });
 document.getElementById('language').addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; try { localStorage.setItem('e5-infoscreen-language', lang); } catch (_) {} translate(); });
 translate();
 loadLatest();
-infoscreenStatistics.start();
+if (window.infoscreenStatistics) infoscreenStatistics.start();
 renderStatistics();
