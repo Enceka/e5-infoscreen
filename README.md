@@ -93,7 +93,12 @@ shared cellular voice route. Install more in LuCI (服务 -> 信息屏应用: up
 a `.tar.gz` or `.zip`), uninstall there or on the screen (高级 -> 应用管理).
 The package format: [`docs/API.md`](docs/API.md) 5.5.
 
-The current core release is `1.6.1` (API 2). Its XKB rules give the physical
+LuCI has two matching pages under Services: **Info screen apps** lists, uploads
+and removes plugins, and **Info screen settings** edits the screen's UCI options.
+The apps page also accepts an official `e5-infoscreen-<version>.tar.gz` update
+package and installs it with the same archive checks as the on-screen updater.
+
+The current core release is `1.6.2` (API 2). Its XKB rules give the physical
 menu, call, confirm and `#` keys distinct browser events; unknown keys never
 activate the focused control. Phone navigation follows the visible keypad
 grid: up/down move within a column and left/right within a row.

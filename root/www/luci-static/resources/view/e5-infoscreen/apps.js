@@ -7,10 +7,13 @@
 // from this browser, uninstalling.  rpcd object e5-infoscreen
 // (/usr/share/rpcd/ucode/e5-infoscreen.uc).
 var UPLOAD = '/tmp/e5-plugin.upload';
+var UPDATE_UPLOAD = '/tmp/e5-infoscreen.update.upload';
 
 var callList = rpc.declare({ object: 'e5-infoscreen', method: 'list', expect: { apps: [] } });
+var callVersion = rpc.declare({ object: 'e5-infoscreen', method: 'version', expect: { version: '' } });
 var callInstall = rpc.declare({ object: 'e5-infoscreen', method: 'install' });
 var callRemove = rpc.declare({ object: 'e5-infoscreen', method: 'remove', params: [ 'id' ] });
+var callUpdateInstall = rpc.declare({ object: 'e5-infoscreen', method: 'update_install' });
 
 function result(r, done) {
 	if (r && r.ok) {
@@ -22,10 +25,6 @@ function result(r, done) {
 }
 
 return view.extend({
-	load: function() {
-		return callList();
-	},
-
 	handleUpload: function() {
 		return ui.uploadFile(UPLOAD).then(function() {
 			return callInstall();
@@ -42,7 +41,18 @@ return view.extend({
 		return callRemove(app.id).then(function(r) { result(r, '已卸载'); });
 	},
 
-	render: function(apps) {
+	handleUpdateUpload: function() {
+		return ui.uploadFile(UPDATE_UPLOAD).then(function() {
+			return callUpdateInstall();
+		}).then(function(r) {
+			result(r, '信息屏已更新，正在重启');
+		}).catch(function(e) {
+			if (e && e.message) ui.addNotification(null, E('p', e.message), 'danger');
+		});
+	},
+
+	render: function(data) {
+		var apps = data.apps || [], version = data.version || '-';
 		var rows = (apps || []).map(L.bind(function(a) {
 			return E('tr', { 'class': 'tr' }, [
 				E('td', { 'class': 'td' }, a.name || a.id),
@@ -74,8 +84,19 @@ return view.extend({
 				E('h3', '安装应用'),
 				E('p', '选择应用包上传并安装；同一 ID 的应用会被替换（即升级）。安装的应用保存在 /etc/e5-infoscreen/plugins，更新系统镜像后仍在。'),
 				E('button', { 'class': 'btn cbi-button cbi-button-action', 'click': ui.createHandlerFn(this, 'handleUpload') }, '上传并安装…')
+			]),
+			E('div', { 'class': 'cbi-section' }, [
+				E('h3', '更新信息屏'),
+				E('p', '当前版本：' + version + '。上传由本项目 CI 生成的 e5-infoscreen-*.tar.gz；安装前会检查归档路径、版本和大小，设置与已安装应用会保留。'),
+				E('button', { 'class': 'btn cbi-button cbi-button-action', 'click': ui.createHandlerFn(this, 'handleUpdateUpload') }, '上传并更新…')
 			])
 		]);
+	},
+
+	load: function() {
+		return Promise.all([ callList(), callVersion() ]).then(function(r) {
+			return { apps: r[0].apps || [], version: r[1].version || '-' };
+		});
 	},
 
 	handleSaveApply: null,

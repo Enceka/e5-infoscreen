@@ -59,34 +59,45 @@ do_fetch() {
 	if newer "$v" "$(current)"; then echo "newer $v"; else echo "current $(current) (latest $v)"; fi
 }
 
+install_archive() {
+	archive=$1
+	[ -f "$archive" ] || die "no such package"
+	[ "$(wc -c < "$archive")" -le "$MAX_BYTES" ] || die "the package is too big"
+	T=$(mktemp -d /tmp/e5-update.XXXXXX) || die "no temporary directory"
+	tar -tzvf "$archive" > "$T/list" 2>/dev/null || die "not a tar.gz"
+	# (the type is the first character of tar -v: - regular, d directory)
+	awk '{ print substr($1, 1, 1) }' "$T/list" | grep -qv '^[-d]$' && die "the package holds links or special files"
+	tar -tzf "$archive" | sed 's|^\./||' | grep -v '^$' > "$T/names"
+	grep -qE '(^|/)\.\.(/|$)|^/' "$T/names" && die "the package holds absolute paths or .."
+	grep -qvE '^(usr|www|etc)(/|$)' "$T/names" && die "the package holds paths outside usr/, www/ and etc/"
+	grep -qE '^etc/(config|e5-infoscreen)(/|$)' "$T/names" && die "the package would touch the settings or the installed apps"
+	grep -qx 'usr/share/e5-infoscreen/VERSION' "$T/names" || die "the package has no VERSION"
+	v=$(tar -xzOf "$archive" usr/share/e5-infoscreen/VERSION 2>/dev/null || tar -xzOf "$archive" ./usr/share/e5-infoscreen/VERSION 2>/dev/null || true)
+	v=$(printf '%s' "$v" | tr -d '\r\n')
+	newer "$v" "$(current)" || die "$v is not newer than $(current)"
+	# the files it replaces, for update rollback
+	( cd / && for f in $(cat "$T/names"); do [ -f "$f" ] && echo "$f"; done ) > "$T/old"
+	mkdir -p "$(dirname "$BACKUP")"
+	tar -czf "$BACKUP" -C / -T "$T/old" 2>/dev/null || die "cannot save the files it replaces"
+	tar -xzf "$archive" -C / || die "unpacking failed (the old files: update rollback)"
+	/etc/init.d/rpcd reload >/dev/null 2>&1
+	echo "installed $v (was: $(tar -xzOf "$BACKUP" usr/share/e5-infoscreen/VERSION 2>/dev/null || echo '?'))"
+	rm -rf "$T"
+	( sleep 1; /etc/init.d/e5-infoscreen restart ) >/dev/null 2>&1 &
+}
+
 do_apply() {
 	[ -f "$STATE" ] || do_fetch >/dev/null || exit 1
 	v=$(get '@.version') url=$(get '@.url') sum=$(get '@.sha256') size=$(get '@.size')
 	[ -n "$v" ] && [ -n "$url" ] && [ -n "$sum" ] || die "the release description lacks version, url or sha256"
 	[ "$1" = --force ] || newer "$v" "$(current)" || die "$v is not newer than $(current)"
 	[ -z "$size" ] || [ "$size" -le "$MAX_BYTES" ] || die "the package is too big ($size bytes)"
-	T=$(mktemp -d /tmp/e5-update.XXXXXX) || die "no temporary directory"
-	trap 'rm -rf "$T"' EXIT
+	D=$(mktemp -d /tmp/e5-update.XXXXXX) || die "no temporary directory"
+	trap 'rm -rf "$D"' EXIT
 	echo "downloading $v"
-	fetch "$url" "$T/p.tar.gz" 300 || die "cannot fetch $url"
-	[ "$(wc -c < "$T/p.tar.gz")" -le "$MAX_BYTES" ] || die "the package is too big"
-	[ "$(sha256sum "$T/p.tar.gz" | cut -d' ' -f1)" = "$sum" ] || die "SHA-256 mismatch"
-	tar -tzvf "$T/p.tar.gz" > "$T/list" 2>/dev/null || die "not a tar.gz"
-	# (the type is the first character of tar -v: - regular, d directory)
-	awk '{ print substr($1, 1, 1) }' "$T/list" | grep -qv '^[-d]$' && die "the package holds links or special files"
-	tar -tzf "$T/p.tar.gz" | sed 's|^\./||' | grep -v '^$' > "$T/names"
-	grep -qE '(^|/)\.\.(/|$)|^/' "$T/names" && die "the package holds absolute paths or .."
-	grep -qvE '^(usr|www|etc)(/|$)' "$T/names" && die "the package holds paths outside usr/, www/ and etc/"
-	grep -qE '^etc/(config|e5-infoscreen)(/|$)' "$T/names" && die "the package would touch the settings or the installed apps"
-	grep -qx 'usr/share/e5-infoscreen/VERSION' "$T/names" || die "the package has no VERSION"
-	# the files it replaces, for update rollback
-	( cd / && for f in $(cat "$T/names"); do [ -f "$f" ] && echo "$f"; done ) > "$T/old"
-	mkdir -p "$(dirname "$BACKUP")"
-	tar -czf "$BACKUP" -C / -T "$T/old" 2>/dev/null || die "cannot save the files it replaces"
-	tar -xzf "$T/p.tar.gz" -C / || die "unpacking failed (the old files: update rollback)"
-	/etc/init.d/rpcd reload >/dev/null 2>&1
-	echo "installed $v (was: $(tar -xzOf "$BACKUP" usr/share/e5-infoscreen/VERSION 2>/dev/null || echo '?'))"
-	( sleep 1; /etc/init.d/e5-infoscreen restart ) >/dev/null 2>&1 &
+	fetch "$url" "$D/p.tar.gz" 300 || die "cannot fetch $url"
+	[ "$(sha256sum "$D/p.tar.gz" | cut -d' ' -f1)" = "$sum" ] || die "SHA-256 mismatch"
+	install_archive "$D/p.tar.gz"
 }
 
 do_rollback() {
@@ -102,5 +113,6 @@ case "${1:-}" in
 	fetch) do_fetch ;;
 	apply) do_apply "${2:-}" ;;
 	rollback) do_rollback ;;
-	*) echo "usage: update version | fetch | apply [--force] | rollback" >&2; exit 2 ;;
+	install) install_archive "$2" ;;
+	*) echo "usage: update version | fetch | apply [--force] | install FILE | rollback" >&2; exit 2 ;;
 esac

@@ -7,6 +7,8 @@ import { popen, unlink } from 'fs';
 
 const TOOL = '/usr/libexec/e5-infoscreen/plugin';
 const UPLOAD = '/tmp/e5-plugin.upload';
+const UPDATE = '/usr/libexec/e5-infoscreen/update';
+const UPDATE_UPLOAD = '/tmp/e5-infoscreen.update.upload';
 
 function run(cmd) {
 	let p = popen(`${cmd} 2>&1`);
@@ -42,6 +44,19 @@ return {
 				if (!match(id, /^[a-z0-9][a-z0-9_-]*$/))
 					return { ok: false, message: 'bad id' };
 				let r = run(`${TOOL} remove ${id}`);
+				return { ok: r.rc == 0, message: r.out };
+			}
+		},
+		version: {
+			call: function() {
+				let r = run(`${UPDATE} version`);
+				return { version: r.rc == 0 ? r.out : '', message: r.out };
+			}
+		},
+		update_install: {
+			call: function() {
+				let r = run(`${UPDATE} install ${UPDATE_UPLOAD}`);
+				unlink(UPDATE_UPLOAD);
 				return { ok: r.rc == 0, message: r.out };
 			}
 		}

@@ -3,6 +3,6 @@
 #   version    版本号，点分，须比设备上已有的新
 #   notes_zh   发布说明（中文）
 #   notes_en   release notes (English)；留空则用中文
-version=1.6.1
-notes_zh=新增信息屏项目主页和 Pages 更新源；页面与设备共用 latest.json，保留 GitHub Release 更新兼容旧设备。
-notes_en=Add the info screen project page and a Pages update feed; the page and devices share latest.json while GitHub Releases remains available for older devices.
+version=1.6.2
+notes_zh=LuCI 新增信息屏设置和主程序更新包上传；插件页、屏幕更新和设置入口保持一致。
+notes_en=Add LuCI settings and main-program package upload; keep the plugin page, screen updater and configuration entry points aligned.

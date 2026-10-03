@@ -9,5 +9,16 @@
 		"depends": {
 			"acl": [ "luci-app-e5-infoscreen" ]
 		}
+	},
+	"admin/services/e5-infoscreen/settings": {
+		"title": "信息屏设置",
+		"order": 61,
+		"action": {
+			"type": "view",
+			"path": "e5-infoscreen/settings"
+		},
+		"depends": {
+			"acl": [ "luci-app-e5-infoscreen" ]
+		}
 	}
 }
