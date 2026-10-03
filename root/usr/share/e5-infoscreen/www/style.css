@@ -318,3 +318,8 @@ body.notouch, body.notouch * { pointer-events: none !important; }
 
 .tr .lbl2 { color: var(--dim); font-size: 12px; width: 30px; }
 .tr .mid { font-size: 17px; }
+
+/* All installed applications share this presentation; no application-specific action is automatic. */
+#notification-card { position:fixed; top:40px; left:8px; right:8px; z-index:7; padding:12px; border:1px solid var(--accent); border-radius:12px; background:var(--card); box-shadow:0 6px 24px #000a; }
+#notification-card[hidden] { display:none; }
+#notification-body { margin:8px 0; overflow-wrap:anywhere; font-size:14px; }

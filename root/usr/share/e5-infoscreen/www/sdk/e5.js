@@ -1,5 +1,5 @@
 /*
- * e5-infoscreen plugin SDK, API version 1 (docs/API.md, "Frontend").
+ * e5-infoscreen plugin SDK, API version 2 (docs/API.md, "Frontend").
  *
  *   <script src="/sdk/e5.js"></script>
  *
@@ -18,6 +18,7 @@
 	const id = m ? m[1] : null;
 
 	let keyFn = null, backFn = null, langFn = null;
+	let capturePower = false, inputBlocked = false;
 	let blank = false;
 	let lastBack = 0;
 	let touch = true;            // the host's 触摸 setting
@@ -55,7 +56,7 @@
 		const kind = kindOf(e);
 		send({ e5: 'key', kind, key: e.key, code: e.code, keyCode: e.keyCode, repeat: e.repeat });
 		// while the screen is dark the host only wakes it; power is the host's
-		if (blank || kind == 'power') {
+		if (blank || inputBlocked || (kind == 'power' && !capturePower)) {
 			e.preventDefault();
 			return;
 		}
@@ -81,6 +82,7 @@
 	window.addEventListener('message', (e) => {
 		const msg = e.data;
 		if (e.source !== window.parent || !msg || typeof msg != 'object') return;
+		if (msg.e5 == 'input-blocked') inputBlocked = !!msg.on;
 		if (msg.e5 == 'blank') blank = !!msg.on;
 		if (msg.e5 == 'touch') touch = msg.on !== false;
 		if (msg.e5 == 'hello') {
@@ -108,7 +110,7 @@
 	}
 
 	const e5 = {
-		version: 1,
+		version: 2,
 		id,
 		lang: params.get('lang') ?? 'zh',
 		/* this plugin's backend: /api/plugins/<id><path> */
@@ -130,6 +132,9 @@
 		onKey: (fn) => { keyFn = fn; },
 		onBack: (fn) => { backFn = fn; },
 		onLang: (fn) => { langFn = fn; },
+		capturePower: (on) => { capturePower = !!on; send({ e5: 'capture-power', on: capturePower }); },
+		notify: (notice) => call(`/api/plugins/${id}/_notify`, { body: notice }),
+		clearNotification: (idValue) => call(`/api/plugins/${id}/_notify`, { body: { id: idValue, clear: true } }),
 		toast: (text) => send({ e5: 'toast', text: String(text) }),
 		exit: () => send({ e5: 'exit' }),
 		/* click an element from a key: goes through even when touch is off */

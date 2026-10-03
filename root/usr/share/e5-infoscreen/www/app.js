@@ -16,7 +16,7 @@ const I18N = {
 		no_sms: '没有短信', unknown_sender: '未知号码', new_sms: '新短信',
 		advanced: '高级', adv_info: '高级信息', model: '型号',
 		traffic: '流量', today: '今日', this_month: '本月', last_days: '最近 7 天', counting_since: '开始统计于',
-		settings: '高级', apps: '应用', no_apps: '没有安装应用', press_again: '再按一次确认', unlocked: '已解锁', pic_close: '按任意键或点一下关闭', app_store: '应用商店', store_install: '安装', store_update: '更新到', store_have: '已安装', store_backend: '含后台（以 root 运行）', store_refresh: '刷新', store_empty: '商店里还没有应用', store_fail: '无法获取应用商店', store_installing: '正在安装…', store_note: '应用来自 github.com/Enceka/infoscreen-plugins，经检查后发布；含后台的应用以 root 运行，只装你信任的', usb_none: '未连接', usb_charger: '仅充电（充电器）', usb_host: '已接电脑，未识别', usb_enumerated: '已连接电脑', usb_lease: '电脑已获取地址', usb_online: '电脑正通过 E5 上网', donate_note: '关闭后不再弹出，以后如有意愿，可以在“高级 → 关于 → 赞赏”里赞赏',
+		notifications: '应用通知', notification_open: '查看', notification_later: '稍后', settings: '高级', apps: '应用', no_apps: '没有安装应用', press_again: '再按一次确认', unlocked: '已解锁', pic_close: '按任意键或点一下关闭', app_store: '应用商店', store_install: '安装', store_update: '更新到', store_have: '已安装', store_backend: '含后台（以 root 运行）', store_refresh: '刷新', store_empty: '商店里还没有应用', store_fail: '无法获取应用商店', store_installing: '正在安装…', store_note: '应用来自 github.com/Enceka/infoscreen-plugins，经检查后发布；含后台的应用以 root 运行，只装你信任的', usb_none: '未连接', usb_charger: '仅充电（充电器）', usb_host: '已接电脑，未识别', usb_enumerated: '已连接电脑', usb_lease: '电脑已获取地址', usb_online: '电脑正通过 E5 上网', donate_note: '关闭后不再弹出，以后如有意愿，可以在“高级 → 关于 → 赞赏”里赞赏',
 		apply: '应用', clear: '全部取消', save: '保存', saved: '已保存', failed: '失败',
 		online: '在线', offline: '离线', blocked: '已禁止上网', block: '禁止上网', unblock: '允许上网',
 		kick: '踢下 Wi-Fi', kicked: '已踢下线', mac: 'MAC', via: '连接', no_devices: '没有设备',
@@ -55,7 +55,7 @@ const I18N = {
 		no_sms: 'No messages', unknown_sender: 'Unknown', new_sms: 'New message',
 		advanced: 'Advanced', adv_info: 'Details', model: 'Model',
 		traffic: 'Traffic', today: 'Today', this_month: 'This month', last_days: 'Last 7 days', counting_since: 'Counting since',
-		settings: 'Settings', apps: 'Apps', no_apps: 'No apps installed', press_again: 'Press again', unlocked: 'Unlocked', pic_close: 'Any key or a tap closes this', app_store: 'App store', store_install: 'Install', store_update: 'Update to', store_have: 'Installed', store_backend: 'with a backend (runs as root)', store_refresh: 'Refresh', store_empty: 'No apps in the store yet', store_fail: 'Cannot reach the app store', store_installing: 'Installing…', store_note: 'Apps from github.com/Enceka/infoscreen-plugins, checked before they are published; an app with a backend runs as root: install what you trust', usb_none: 'Not connected', usb_charger: 'Charging only (a charger)', usb_host: 'A computer, not enumerated', usb_enumerated: 'Connected to a computer', usb_lease: 'The computer has an address', usb_online: 'The computer is online through the E5', donate_note: 'This is not shown again; it stays under Settings -> About -> Donate',
+		notifications: 'App notification', notification_open: 'Open', notification_later: 'Later', settings: 'Settings', apps: 'Apps', no_apps: 'No apps installed', press_again: 'Press again', unlocked: 'Unlocked', pic_close: 'Any key or a tap closes this', app_store: 'App store', store_install: 'Install', store_update: 'Update to', store_have: 'Installed', store_backend: 'with a backend (runs as root)', store_refresh: 'Refresh', store_empty: 'No apps in the store yet', store_fail: 'Cannot reach the app store', store_installing: 'Installing…', store_note: 'Apps from github.com/Enceka/infoscreen-plugins, checked before they are published; an app with a backend runs as root: install what you trust', usb_none: 'Not connected', usb_charger: 'Charging only (a charger)', usb_host: 'A computer, not enumerated', usb_enumerated: 'Connected to a computer', usb_lease: 'The computer has an address', usb_online: 'The computer is online through the E5', donate_note: 'This is not shown again; it stays under Settings -> About -> Donate',
 		apply: 'Apply', clear: 'Clear all', save: 'Save', saved: 'Saved', failed: 'Failed',
 		online: 'Online', offline: 'Offline', blocked: 'Blocked', block: 'Block internet', unblock: 'Allow internet',
 		kick: 'Kick off Wi-Fi', kicked: 'Kicked', mac: 'MAC', via: 'Via', no_devices: 'No devices',
@@ -116,6 +116,7 @@ let brightness = 120;
 let smsList = [];          // the last /api/sms
 let smsOpen = null;        // the id of the message on screen
 let smsUnread = null;      // the unread ids at the last poll
+let notificationList = [], notificationSeen = new Set(), notificationDismissed = new Set(), notificationCurrent = null;
 let smsArmed = null;       // the delete button's second-press timer
 
 // the pages, in order (the digit keys count from 1)
@@ -233,6 +234,7 @@ function renderBar(st) {
 	tickClock();
 	const n_sms = st.sms?.unread?.length ?? 0;
 	setText('bar-sms', n_sms ? '✉ ' + n_sms : '');
+	setText('bar-notifications', notificationList.length ? '• ' + notificationList.length : '');
 }
 
 // What the battery does, from the current as much as from the status: the
@@ -446,6 +448,7 @@ async function poll() {
 			}
 			if (!blank) render(st);
 			smsCheck(st);
+			notificationCheck(st.notifications ?? []);
 			pollUpdate();
 		}
 	} catch (e) {
@@ -465,6 +468,7 @@ function post(path, body) {
 /* ---------- overview update notification ---------- */
 
 function renderUpdateNotice() {
+	renderNotification();
 	const u = updateState, card = $('update-card');
 	if (!card) return;
 	card.hidden = page != P.overview || blank || locked || picShown || appOpen ||
@@ -678,6 +682,7 @@ function showPage(n) {
 }
 
 function focusables() {
+	if (!$('notification-card').hidden) return Array.from($('notification-card').querySelectorAll('button'));
 	const list = Array.from(pages[page].querySelectorAll('button'));
 	if (page == P.overview && $('update-card'))
 		list.push(...$('update-card').querySelectorAll('button, [tabindex="0"]'));
@@ -759,6 +764,7 @@ document.addEventListener('keydown', (e) => {
 		return;
 	}
 	resetIdle();
+	if (!$('notification-card').hidden && notificationKey(kind)) return;
 	if (picShown) {
 		picClose();
 		return;
@@ -1574,6 +1580,7 @@ on('st-view', 'click', (e) => {
 let apps = null;
 let appOpen = null;               // the manifest of the open plugin
 let appKeepAwake = false;
+let appCapturePower = false;
 
 async function loadApps() {
 	const r = await fetch('/api/plugins', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
@@ -1587,10 +1594,12 @@ function openApp(m) {
 	const f = $('app-frame');
 	appOpen = m;
 	appKeepAwake = false;
+	appCapturePower = false;
 	f.src = `/plugins/${encodeURIComponent(m.id)}/${m.entry ?? 'index.html'}?lang=${lang}`;
 	f.hidden = false;
 	f.onload = () => f.focus();
 	setText('foot-title', lbl(m.name) || m.id);
+	renderNotification();
 }
 
 function closeApp() {
@@ -1599,8 +1608,10 @@ function closeApp() {
 	f.src = 'about:blank';
 	appOpen = null;
 	appKeepAwake = false;
+	appCapturePower = false;
 	resetIdle();
 	setText('foot-title', t(pages[page].dataset.title));
+	renderNotification();
 	const b = document.querySelector('[data-app]');
 	if (b) b.focus();
 }
@@ -1621,10 +1632,12 @@ window.addEventListener('message', (e) => {
 	if (!appOpen || !m || typeof m != 'object' || e.source !== $('app-frame').contentWindow) return;
 	switch (m.e5) {
 	case 'key':                     // every key the plugin sees, for the host's own keys
+		if (!$('notification-card').hidden && notificationKey(m.kind)) return;
 		if (m.key == 'AudioVolumeUp' || m.keyCode == 175 || m.key == 'AudioVolumeDown' || m.keyCode == 174) {
 			volumeKey(m.key == 'AudioVolumeUp' || m.keyCode == 175 ? 1 : -1);
 			return;
 		}
+		if (m.kind == 'power' && appCapturePower && !blank && !locked) { resetIdle(); return; }
 		if (keyLock(m.kind == 'power' && !m.repeat, m.key == '*')) return;
 		if (blank) { setBlank(false); toApp({ e5: 'blank', on: false }); return; }
 		resetIdle();
@@ -1636,8 +1649,9 @@ window.addEventListener('message', (e) => {
 		appKeepAwake = !!m.on;
 		resetIdle();
 		break;
+	case 'capture-power': appCapturePower = !!m.on; break;
 	case 'ready':
-		toApp({ e5: 'hello', lang, api_version: 1, blank, tz_offset: last?.tz_offset ?? 0, touch: !touchOff() });
+		toApp({ e5: 'hello', lang, api_version: 2, blank, tz_offset: last?.tz_offset ?? 0, touch: !touchOff() });
 		break;
 	}
 });
@@ -1692,3 +1706,46 @@ if ((!$('pic') || !$('update-card')) && !sessionStorage.getItem('e5-reloaded')) 
 	showPage(0);
 	poll();
 }
+
+
+/* ---------- generic plugin notifications ---------- */
+function notificationCheck(list) {
+ notificationList = list;
+ const keys = new Set(list.map(n => n.plugin + '/' + n.id));
+ for (const k of notificationDismissed) if (!keys.has(k)) notificationDismissed.delete(k);
+ const fresh = list.find(n => !notificationSeen.has(n.plugin + '/' + n.id));
+ notificationSeen = keys;
+ if (fresh && fresh.wake && !locked && blank) setBlank(false);
+ renderNotification();
+}
+function renderNotification() {
+ const n = notificationList.find(n => !notificationDismissed.has(n.plugin + '/' + n.id) && appOpen?.id !== n.plugin);
+ notificationCurrent = n ?? null;
+ $('notification-card').hidden = !n || blank || locked || picShown;
+ toApp({ e5: 'input-blocked', on: !$('notification-card').hidden });
+ setText('bar-notifications', notificationList.length ? '• ' + notificationList.length : '');
+ if (!n) return;
+ setText('notification-title', lbl(n.title) || t('notifications'));
+ setText('notification-body', n.body || '');
+ setText('notification-open', t('notification_open'));
+ setText('notification-later', t('notification_later'));
+}
+function dismissNotification() {
+ if (notificationCurrent) notificationDismissed.add(notificationCurrent.plugin + '/' + notificationCurrent.id);
+ renderNotification();
+}
+function notificationKey(kind) {
+ if (kind == 'up' || kind == 'left') { $('notification-open').focus(); return true; }
+ if (kind == 'down' || kind == 'right') { $('notification-later').focus(); return true; }
+ if (kind == 'ok') { pressKey(document.activeElement === $('notification-later') ? $('notification-later') : $('notification-open')); return true; }
+ if (kind == 'back') { dismissNotification(); return true; }
+ return false;
+}
+on('notification-later', 'click', dismissNotification);
+on('notification-open', 'click', async () => {
+ const n = notificationCurrent;
+ if (!n) return;
+ const response = await fetch('/api/plugins', { cache: 'no-store' }).then(r => r.json()).catch(() => null);
+ const m = response?.plugins?.find(m => m.id === n.plugin);
+ if (m) { if (appOpen) closeApp(); openApp(m); renderNotification(); }
+});

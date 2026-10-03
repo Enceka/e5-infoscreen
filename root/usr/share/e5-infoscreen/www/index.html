@@ -15,6 +15,7 @@
 	</div>
 	<div class="right">
 		<span id="bar-sms" class="smsmark"></span>
+		<span id="bar-notifications" class="smsmark"></span>
 		<span id="bar-bars" class="bars"><i></i><i></i><i></i><i></i></span>
 		<span id="bar-bat" class="bat"><b></b></span>
 		<span id="bar-batpct">--</span>
@@ -240,6 +241,11 @@
 		<button id="update-later" class="btn" data-t="update_later"></button>
 	</div>
 	<div class="update-later-hint" data-t="update_later_hint"></div>
+</aside>
+
+<aside id="notification-card" hidden role="status" aria-live="polite">
+ <strong id="notification-title"></strong><div id="notification-body"></div>
+ <div class="update-actions"><button id="notification-open" class="btn on"></button><button id="notification-later" class="btn"></button></div>
 </aside>
 
 <!-- a picture over everything (the 赞赏码): a key or a tap closes it -->

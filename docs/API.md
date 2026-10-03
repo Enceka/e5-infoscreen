@@ -359,3 +359,28 @@ the image has cannot be installed this way: that takes an image update.
 To publish a version: raise `VERSION`, commit, `tools/make-release.sh "说明" "notes"`, and upload
 `dist/e5-infoscreen-<version>.tar.gz` and `dist/latest.json` to a GitHub release `v<version>`
 marked latest.
+
+## Application notifications (API 2, core 1.5.0+)
+
+`e5.notify({id, title, body, wake, ttl})` publishes a notification in the current
+plugin namespace. `e5.clearNotification(id)` removes it. Backends have the same
+operations as `ctx.notify(notice)` and `ctx.clear_notification(id)`. IDs use
+letters, numbers, `_` or `-` (1–64 characters). `title` may be a `{zh,en}` label;
+`body` is plain text, `wake` requests screen wake, and `ttl` is seconds (default
+60; maximum 86400). Requests use `POST /api/plugins/<id>/_notify`; only installed
+plugins can publish. `GET /api/notifications` lists current notifications.
+
+For a plugin that must notify with its page closed, set `notifications: true`
+in its manifest and expose `GET /notifications` in `backend.uc`, returning
+`{notifications:[{id,title,body,wake}]}`. This route must only read state; the
+core never invokes any plugin action automatically. The status poll includes
+these results as `notifications`. Use stable IDs and return an empty list when
+the condition ends. The core provides a status indicator, Open and Later
+buttons, text-safe display, and wake control respecting key lock. Open loads
+the installed plugin, and does not answer calls or perform other plugin actions.
+
+API 2 also provides `e5.capturePower(on)` for an app that handles the existing
+power/lock event during an operation; it does not alter hardware key mappings.
+Core-owned notification overlays block input to the underlying plugin until
+dismissed. Apps using these methods must declare `api_version: 2`; API 1 apps
+continue to work.

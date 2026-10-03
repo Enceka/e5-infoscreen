@@ -21,7 +21,7 @@
 # top directory; no absolute path, no "..", no link, at most 20 MB unpacked.
 WWW=/usr/share/e5-infoscreen/www/plugins
 USER_DIR=/etc/e5-infoscreen/plugins
-API_VERSION=1
+API_VERSION=2
 MAX_KB=20480
 STORE=/tmp/run/e5-infoscreen/store.json
 STORE_URL=https://enceka.github.io/infoscreen-plugins/index.json

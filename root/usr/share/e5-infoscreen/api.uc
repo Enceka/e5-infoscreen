@@ -954,9 +954,28 @@ function identity() {
 
 /* ---------- context: what settings.uc and plugin backends get ---------- */
 
-const API_VERSION = 1;
+const API_VERSION = 2;
 const WWW = '/usr/share/e5-infoscreen/www';
 const PLUGINS = WWW + '/plugins';
+
+function notice_valid(id) { return match(`${id ?? ''}`, /^[A-Za-z0-9_-]{1,64}$/) != null; }
+function notice_normalize(plugin, n) {
+	if (type(n) != 'object' || !notice_valid(n.id)) return null;
+	return { plugin, id: `${n.id}`, title: n.title ?? '', body: `${n.body ?? ''}`,
+		wake: n.wake === true, expires: n.expires ?? (time() + 60) };
+}
+function notice_store(plugin, n) {
+	if (!plugin || !notice_valid(n?.id)) return 'invalid notification id';
+	let list = state_get('notices-' + plugin) ?? [];
+	list = filter(list, old => old.id != n.id && old.expires > time());
+	if (!n.clear) {
+		let normalized = notice_normalize(plugin, n);
+		normalized.expires = time() + max(1, min(86400, int(n.ttl ?? 60)));
+		push(list, normalized);
+	}
+	state_put('notices-' + plugin, list);
+	return null;
+}
 
 function cells() {
 	let out = [];
@@ -970,6 +989,8 @@ function make_ctx(ns) {
 	let pre = ns ? `plugin-${ns}-` : '';
 	return {
 		api_version: API_VERSION,
+		notify: n => notice_store(ns, n),
+		clear_notification: id => notice_store(ns, { id, clear: true }),
 		sh, sh_json, read_trim, read_num, payload_ints,
 		at,
 		at_console,
@@ -1101,6 +1122,13 @@ function query_args(qs) {
 function plugin_request(env, id, rest, body) {
 	if (!match(id, /^[a-z0-9][a-z0-9_-]*$/))
 		return reply_json(404, { error: 'no such plugin' });
+	if (rest == '/_notify' && env.REQUEST_METHOD == 'POST') {
+		let found = false;
+		for (let m in plugin_manifests()) if (m.id == id) found = true;
+		if (!found) return reply_json(404, { error: 'no such plugin' });
+		let error = notice_store(id, body ?? {});
+		return reply_json(error ? 400 : 200, { ok: !error, error });
+	}
 	let path = `${PLUGINS}/${id}/backend.uc`;
 	if (!stat(path))
 		return reply_json(404, { error: 'no backend' });
@@ -1113,6 +1141,28 @@ function plugin_request(env, id, rest, body) {
 	if (type(r) == 'object' && r.body != null && (r.status || r.type))
 		return reply(r.status ?? 200, r.type ?? 'text/plain', r.body);
 	return reply_json(200, r ?? {});
+}
+
+// Installed plugins may publish a read-only provider for notifications while
+// their UI is closed. No action route is ever called by this poll.
+function app_notifications() {
+	let out = [];
+	for (let m in plugin_manifests()) {
+		for (let n in (state_get('notices-' + m.id) ?? []))
+			if (n.expires > time()) push(out, n);
+		if (m.notifications !== true || !m.has_backend) continue;
+		try {
+			let routes = loadfile(`${PLUGINS}/${m.id}/backend.uc`, { raw_mode: true })()(make_ctx(m.id));
+			let provider = routes?.['GET /notifications'];
+			if (type(provider) != 'function') continue;
+			let notices = provider({ method: 'GET', path: '/notifications', query: {}, body: {} })?.notifications;
+			for (let n in (notices ?? [])) {
+				let normalized = notice_normalize(m.id, n);
+				if (normalized) push(out, normalized);
+			}
+		} catch(e) {}
+	}
+	return out;
 }
 
 /* ---------- devices ---------- */
@@ -1222,7 +1272,8 @@ function status() {
 		usb: usb_status(),
 		system: system_status(),
 		screen: screen_config(),
-		sms: { unread: sms_unread(), ...sms_config() }
+		sms: { unread: sms_unread(), ...sms_config() },
+		notifications: app_notifications()
 	};
 }
 
@@ -1402,6 +1453,8 @@ global.handle_request = function(env) {
 	try {
 		if (!post && path == '/status')
 			return reply_json(200, status());
+		if (!post && path == '/notifications')
+			return reply_json(200, { notifications: app_notifications() });
 		if (path == '/update') {
 			let u = screen_updates();
 			if (!post)

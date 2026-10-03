@@ -283,3 +283,21 @@ tar -czf nettest-1.0.tar.gz -C www/plugins nettest     # 或：cd www/plugins &&
 
 发布新版本：提高 `VERSION` 并提交，运行 `tools/make-release.sh "说明" "notes"`，把
 `dist/e5-infoscreen-<版本>.tar.gz` 和 `dist/latest.json` 上传到 GitHub 发布 `v<版本>`，并标为最新。
+
+## 应用通知（API 2，信息屏 1.5.0 起）
+
+前端：`e5.notify({id,title,body,wake,ttl})` 提交通知，
+`e5.clearNotification(id)` 撤销。后台对应 `ctx.notify()` 和
+`ctx.clear_notification()`。通知按插件 ID 隔离；title 支持中英文标签，
+body 只显示文本，wake 请求亮屏，ttl 默认 60 秒、最大 86400 秒。
+`POST /api/plugins/<id>/_notify` 只允许已安装插件提交；
+`GET /api/notifications` 返回有效通知。
+
+应用关闭后仍需提醒时，在 manifest 声明 `notifications: true`，并实现
+后台 `GET /notifications`，返回 `{notifications:[{id,title,body,wake}]}`。
+这个接口必须只读；条件结束时返回空列表。核心统一显示状态栏、弹窗、
+“查看”和“稍后”，并遵守按键锁。查看只打开应用，不会自动接听、拨号等。
+通知覆盖层显示时，底下的插件不会收到操作输入。
+
+`e5.capturePower(on)` 允许应用在操作期间接收原有锁屏/电源事件，不改变物理
+按键映射。使用新方法的应用声明 `api_version: 2`，原 API 1 应用保持兼容。
