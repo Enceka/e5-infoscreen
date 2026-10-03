@@ -132,6 +132,8 @@ and enables and starts the service.  A reinstall keeps `/etc/config/e5-infoscree
 | `idle` | `60` | seconds before the backlight goes off, `0` never |
 | `brightness` | `120` | backlight level while on, 1-255 (the Device page changes and saves it) |
 | `lang` | `zh` | `zh` or `en` |
+| `update_url` | (unset) | optional update JSON override; empty uses the Pages feed |
+| `store_url` | (unset) | optional app-store JSON override; empty uses the official store |
 | `donate_seen` | (unset) | `1` once the 赞赏码 has been shown at the first start after an install; after that it is under 高级 -> 关于 -> 赞赏 only |
 | `update_defer_version` | (unset) | Release whose reminder is postponed; a newer release still appears |
 | `update_defer_until` | (unset) | Unix timestamp of the next reminder, 24 hours after choosing Later |

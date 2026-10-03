@@ -113,6 +113,6 @@ case "${1:-}" in
 	fetch) do_fetch ;;
 	apply) do_apply "${2:-}" ;;
 	rollback) do_rollback ;;
-	install) install_archive "$2" ;;
+	install) install_archive "${2:-}" ;;
 	*) echo "usage: update version | fetch | apply [--force] | install FILE | rollback" >&2; exit 2 ;;
 esac
