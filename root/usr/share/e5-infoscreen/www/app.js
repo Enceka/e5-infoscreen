@@ -632,6 +632,7 @@ function setLocked(on) {
 	}
 	applyTouch();
 	toApp({ e5: 'blank', on: blank });
+	toIme({ e5: 'blank', on: blank });
 }
 
 // a key, as far as the lock is concerned: true when it is the lock's (the *
@@ -773,8 +774,8 @@ document.addEventListener('keydown', (e) => {
 		if (!e.repeat) { if (appOpen) closeApp(); showPage(P.apps); }
 		return;
 	}
-	if (appOpen) {                       // (the plugin's frame lost the focus)
-		$('app-frame').focus();
+	if (appOpen) {                       // (a plugin frame lost the focus)
+		(imeOpen ? $('ime-frame') : $('app-frame')).focus();
 		return;
 	}
 	if (page == P.settings && stKey(kind)) return;
@@ -827,6 +828,7 @@ function pressKey(el) {
 function applyTouch() {
 	document.body.classList.toggle('notouch', touchOff());
 	toApp({ e5: 'touch', on: !touchOff() });
+	toIme({ e5: 'touch', on: !touchOff() });
 }
 
 // touch: the first touch on a dark screen wakes it and does nothing else;
@@ -1586,6 +1588,9 @@ let appOpen = null;               // the manifest of the open plugin
 let appKeepAwake = false;
 let appCapturePower = false;
 let inputTarget = null;           // the last host input focused before an app opened
+let inputFrame = null;             // null for a host page, the app iframe for a plugin input
+let imeOpen = false;
+let imeClosing = false;
 
 function isInputTarget(el) {
 	if (!el || !el.tagName) return !!el?.isContentEditable;
@@ -1597,13 +1602,15 @@ function isInputTarget(el) {
 }
 
 function currentInputTarget() {
-	if (!isInputTarget(inputTarget) || !document.documentElement.contains(inputTarget) || inputTarget.hidden) return null;
+	const owner = inputFrame?.contentDocument ?? document;
+	if (!isInputTarget(inputTarget) || !owner.documentElement.contains(inputTarget) || inputTarget.hidden) return null;
 	if (inputTarget.getClientRects && !inputTarget.getClientRects().length) return null;
 	return inputTarget;
 }
 
 function notifyInputTarget() {
-	if (appOpen) toApp({ e5: 'input-target', available: !!currentInputTarget() });
+	if (imeOpen) toIme({ e5: 'input-target', available: !!currentInputTarget() });
+	else if (appOpen) toApp({ e5: 'input-target', available: !!currentInputTarget() });
 }
 
 function inputEvent(el, inputType, data) {
@@ -1665,18 +1672,20 @@ function backspaceInput(el) {
 }
 
 function pluginInput(msg) {
-	if (!appOpen?.input_method) return;
+	if (!imeOpen && !appOpen?.input_method) return;
 	const target = currentInputTarget();
 	let ok = !!target;
 	if (ok && msg.action == 'insert') ok = typeof msg.text == 'string' && msg.text.length <= 4096 && insertIntoInput(target, msg.text);
 	else if (ok && msg.action == 'backspace') ok = backspaceInput(target);
 	else if (msg.action != 'insert' && msg.action != 'backspace') ok = false;
-	toApp({ e5: 'input-result', ok, error: ok ? undefined : (target ? 'input target rejected the operation' : 'no input target') });
+	const result = { e5: 'input-result', ok, error: ok ? undefined : (target ? 'input target rejected the operation' : 'no input target') };
+	if (imeOpen) toIme(result); else toApp(result);
 }
 
 document.addEventListener('focusin', (event) => {
 	if (isInputTarget(event.target)) {
 		inputTarget = event.target;
+		inputFrame = null;
 		notifyInputTarget();
 	}
 });
@@ -1690,18 +1699,20 @@ async function loadApps() {
 }
 
 function openApp(m) {
+	if (imeOpen) closeInputMethod();
 	const f = $('app-frame');
 	appOpen = m;
 	appKeepAwake = false;
 	appCapturePower = false;
 	f.src = `/plugins/${encodeURIComponent(m.id)}/${m.entry ?? 'index.html'}?lang=${lang}`;
 	f.hidden = false;
-	f.onload = () => f.focus();
+	f.onload = () => { observeAppInputs(f); f.focus(); };
 	setText('foot-title', lbl(m.name) || m.id);
 	renderNotification();
 }
 
 function closeApp() {
+	if (imeOpen) closeInputMethod();
 	const f = $('app-frame');
 	f.hidden = true;
 	f.src = 'about:blank';
@@ -1720,6 +1731,51 @@ function toApp(msg) {
 	if (appOpen && f.contentWindow) f.contentWindow.postMessage({ e5: msg.e5, ...msg }, '*');
 }
 
+function toIme(msg) {
+	const f = $('ime-frame');
+	if (imeOpen && f.contentWindow) f.contentWindow.postMessage({ e5: msg.e5, ...msg }, '*');
+}
+
+function observeAppInputs(frame) {
+	const doc = frame.contentDocument;
+	if (!doc || doc.__e5InputObserver) return;
+	doc.__e5InputObserver = true;
+	doc.addEventListener('focusin', (event) => {
+		if (!appOpen || frame !== $('app-frame') || appOpen.input_method || imeClosing || !isInputTarget(event.target)) return;
+		inputTarget = event.target;
+		inputFrame = frame;
+		openInputMethod();
+	}, true);
+}
+
+async function openInputMethod() {
+	if (imeOpen || !currentInputTarget() || appOpen?.input_method) return;
+	let provider = apps?.find((m) => m.input_method === true);
+	if (!provider) {
+		const r = await fetch('/api/plugins', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+		apps = r?.plugins ?? apps ?? [];
+		provider = apps.find((m) => m.input_method === true);
+	}
+	if (!provider || !currentInputTarget()) return;
+	const f = $('ime-frame');
+	imeOpen = true;
+	f.src = `/plugins/${encodeURIComponent(provider.id)}/${provider.entry ?? 'index.html'}?lang=${lang}&ime=1`;
+	f.hidden = false;
+	f.onload = () => f.focus();
+}
+
+function closeInputMethod() {
+	if (!imeOpen) return;
+	const f = $('ime-frame');
+	imeOpen = false;
+	f.hidden = true;
+	f.src = 'about:blank';
+	const target = currentInputTarget();
+	imeClosing = true;
+	if (target?.focus) target.focus();
+	setTimeout(() => { imeClosing = false; }, 100);
+}
+
 on('ap-list', 'click', (e) => {
 	const b = e.target.closest('[data-app]');
 	if (b && apps) openApp(apps[+b.dataset.app]);
@@ -1728,7 +1784,10 @@ on('ap-list', 'click', (e) => {
 // the plugin side of the protocol (sdk/e5.js; docs/API.md, "Frontend")
 window.addEventListener('message', (e) => {
 	const m = e.data;
-	if (!appOpen || !m || typeof m != 'object' || e.source !== $('app-frame').contentWindow) return;
+	const fromIme = imeOpen && e.source === $('ime-frame').contentWindow;
+	const fromApp = appOpen && e.source === $('app-frame').contentWindow;
+	if ((!fromIme && !fromApp) || !m || typeof m != 'object') return;
+	const send = (msg) => fromIme ? toIme(msg) : toApp(msg);
 	switch (m.e5) {
 	case 'key':                     // every key the plugin sees, for the host's own keys
 		if (!$('notification-card').hidden && notificationKey(m.kind)) return;
@@ -1738,12 +1797,12 @@ window.addEventListener('message', (e) => {
 		}
 		if (m.kind == 'power' && appCapturePower && !blank && !locked) { resetIdle(); return; }
 		if (keyLock(m.kind == 'power' && !m.repeat, m.key == '*')) return;
-		if (blank) { setBlank(false); toApp({ e5: 'blank', on: false }); return; }
+		if (blank) { setBlank(false); send({ e5: 'blank', on: false }); return; }
 		resetIdle();
-		if (m.kind == 'menu' && !m.repeat) { closeApp(); showPage(P.apps); return; }
-		if (m.kind == 'power' && !m.repeat) { setBlank(true); toApp({ e5: 'blank', on: true }); }
+		if (m.kind == 'menu' && !m.repeat) { if (fromIme) closeInputMethod(); else { closeApp(); showPage(P.apps); } return; }
+		if (m.kind == 'power' && !m.repeat) { setBlank(true); send({ e5: 'blank', on: true }); }
 		break;
-	case 'exit': closeApp(); break;
+	case 'exit': if (fromIme) closeInputMethod(); else closeApp(); break;
 	case 'toast': toast(String(m.text ?? '')); break;
 	case 'keep-awake':
 		appKeepAwake = !!m.on;
@@ -1752,7 +1811,7 @@ window.addEventListener('message', (e) => {
 	case 'capture-power': appCapturePower = !!m.on; break;
 	case 'input': pluginInput(m); break;
 	case 'ready':
-		toApp({ e5: 'hello', lang, api_version: 2, blank, tz_offset: last?.tz_offset ?? 0, touch: !touchOff(), input_available: !!currentInputTarget() });
+		send({ e5: 'hello', lang, api_version: 2, blank, tz_offset: last?.tz_offset ?? 0, touch: !touchOff(), input_available: !!currentInputTarget() });
 		break;
 	}
 });
@@ -1824,6 +1883,7 @@ function renderNotification() {
  notificationCurrent = n ?? null;
  $('notification-card').hidden = !n || blank || locked || picShown;
  toApp({ e5: 'input-blocked', on: !$('notification-card').hidden });
+ toIme({ e5: 'input-blocked', on: !$('notification-card').hidden });
  setText('bar-notifications', notificationList.length ? '• ' + notificationList.length : '');
  if (!n) return;
  setText('notification-title', lbl(n.title) || t('notifications'));

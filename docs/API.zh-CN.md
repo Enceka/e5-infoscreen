@@ -197,7 +197,8 @@ manifest 的 `id`。复制目录即安装，删除目录即卸载，不需要重
 一样使用。请用大字号和深色背景（与信息屏一致：背景 `#0b0e13`、卡片 `#161b23`、文字
 `#e8ecf2`）；可用字体为 Noto Sans CJK SC 和 DejaVu Sans。
 
-输入法应用打开时，主程序会记住页面中最近聚焦的可编辑目标。
+已安装的应用聚焦可编辑控件时，主程序会在第二个覆盖框里自动打开第一个设置了
+`input_method: true` 的输入法应用，原应用保持在下面。
 `e5.input()` 按目标当前选区插入文字，并派发标准 `input` 事件，因此页面自己的校验和绑定仍会执行。
 目标可以是未禁用、未只读的 `input`、`textarea` 或 `contenteditable`。
 `e5.inputAvailable` 和 `e5.onInputTarget()` 表示当前是否有目标；宿主只接受

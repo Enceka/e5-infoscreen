@@ -262,8 +262,10 @@ application. Touch works as in any page. Use large text and a dark
 background (the screen's own look: `#0b0e13`, cards `#161b23`, text `#e8ecf2`);
 the fonts are Noto Sans CJK SC and DejaVu Sans.
 
-An input-method app is opened with the host page's last focused editable target
-remembered. `e5.input()` inserts at that target's selection and dispatches a
+When an installed application focuses an editable control, the host opens the
+first installed manifest with `input_method: true` in a second overlay frame.
+The original application stays underneath it. `e5.input()` inserts at that
+target's selection and dispatches a
 standard `input` event, so the page's own validation and bindings continue to
 work. The target is an `input`, `textarea` or `contenteditable` element that is
 not disabled or read-only. `e5.inputAvailable` and `e5.onInputTarget()` expose

@@ -214,6 +214,7 @@ html, body {
 
 /* apps */
 #app-frame { position: absolute; top: 30px; bottom: 26px; left: 0; right: 0; width: 100%; height: calc(100% - 56px); border: 0; background: var(--bg); z-index: 4; }
+#ime-frame { position: absolute; top: 30px; bottom: 26px; left: 0; right: 0; width: 100%; height: calc(100% - 56px); border: 0; background: var(--bg); z-index: 6; }
 
 /* hotspot */
 .qr { display: flex; flex-direction: column; align-items: center; gap: 6px; }

@@ -3,6 +3,6 @@
 #   version    版本号，点分，须比设备上已有的新
 #   notes_zh   发布说明（中文）
 #   notes_en   release notes (English)；留空则用中文
-version=1.6.2
-notes_zh=LuCI 新增信息屏设置和主程序更新包上传；插件页、屏幕更新和设置入口保持一致。
-notes_en=Add LuCI settings and main-program package upload; keep the plugin page, screen updater and configuration entry points aligned.
+version=1.6.3
+notes_zh=输入框聚焦时自动弹出已安装的输入法应用，支持电话等插件里的文字输入。
+notes_en=Automatically open an installed input method when an app focuses a text field, including fields in Phone and other plugins.
