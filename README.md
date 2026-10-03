@@ -85,9 +85,18 @@ the core API, the settings items, the SDK and the backend context.
 
 ## Apps
 
-The Apps page shows the plugins; two come with the screen.  Install more in
-LuCI (服务 -> 信息屏应用: upload a `.tar.gz` or `.zip`), uninstall there or
-on the screen (高级 -> 应用管理).  The package format: [`docs/API.md`](docs/API.md) 5.5.
+The Apps page shows the plugins; the core image contains the calculator and
+network-test apps, while the OpenWrt E5 image preinstalls the separately
+updatable Phone app (`1.4`). Phone provides the dialer, contacts, call
+controls, incoming-call notification, ringtone/vibration settings and the
+shared cellular voice route. Install more in LuCI (服务 -> 信息屏应用: upload
+a `.tar.gz` or `.zip`), uninstall there or on the screen (高级 -> 应用管理).
+The package format: [`docs/API.md`](docs/API.md) 5.5.
+
+The current core release is `1.5.1` (API 2). Its XKB rules give the physical
+menu, call, confirm and `#` keys distinct browser events; unknown keys never
+activate the focused control. Phone navigation follows the visible keypad
+grid: up/down move within a column and left/right within a row.
 
 ## Install
 
